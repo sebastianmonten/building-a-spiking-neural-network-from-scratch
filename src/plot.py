@@ -1,29 +1,29 @@
 # This script is created with ChatGPT
 
-import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
-# Read the CSV file into NumPy arrays
-data = np.genfromtxt('bin/tmp_output.csv', delimiter=',', skip_header=1)
+# Load the data
+file_path = "bin/tmp_output.csv"
+data = pd.read_csv(file_path)
 
-# Separate the columns
-time = data[:, 0]
-mem_pot_1 = data[:, 1]
-mem_pot_2 = data[:, 2]
+# Create subplots with shared x-axis
+fig, axs = plt.subplots(4, 1, sharex=True, figsize=(10, 8))
 
-# Create a figure and two subplots
-fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+# Plot each MemPot
+axs[0].plot(data['Time'], data['MemPot0'])
+axs[0].set_ylabel('MemPot 0')
 
-# Plot MemPot 1
-ax1.plot(time, mem_pot_1, label='MemPot 1')
-ax1.set_ylabel('MemPot 1')
-ax1.legend()
+axs[1].plot(data['Time'], data['MemPot1'])
+axs[1].set_ylabel('MemPot 1')
 
-# Plot MemPot 2
-ax2.plot(time, mem_pot_2, label='MemPot 2', color='orange')
-ax2.set_ylabel('MemPot 2')
-ax2.set_xlabel('Time')
-ax2.legend()
+axs[2].plot(data['Time'], data['MemPot2'])
+axs[2].set_ylabel('MemPot 2')
 
-# Show the plot
+axs[3].plot(data['Time'], data['MemPot3'])
+axs[3].set_ylabel('MemPot 3')
+axs[3].set_xlabel('Time')
+
+# Adjust layout
+plt.tight_layout()
 plt.show()
