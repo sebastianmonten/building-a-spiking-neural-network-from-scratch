@@ -3,100 +3,88 @@
 #include <stdbool.h>
 #include <math.h>
 
+///////////////////////////// INPUT LIST //////////////////////////////////
+
 typedef struct INPUT {
-    int index;
+    int target_index;
     double value;
     struct INPUT* next;
+    struct INPUT* prev;
 } INPUT;
 
-typedef struct {
-    INPUT** table;
+typedef struct INPUT_LIST {
+    INPUT* head;
+    INPUT* tail;
     int size;
-} HashTable;
+    int max_size;
+} INPUT_LIST;
 
-// Hash function
-unsigned int hash(int index, int size) {
-    return index % size;
+INPUT_LIST* create_input_list(int max_size) {
+    INPUT_LIST* input_list = (INPUT_LIST*)malloc(sizeof(INPUT_LIST));
+    input_list->head = NULL;
+    input_list->tail = NULL;
+    input_list->size = 0;
+    input_list->max_size = max_size;
+    return input_list;
 }
 
-// Create a new input
-INPUT* create_input(int index, double value) {
+void insert_input(INPUT_LIST* input_list, int target_index, double value) {
+
+    if (input_list->max_size -1 < target_index) {
+        printf("Error: target index is out of range\n");
+        return;
+    }
+
     INPUT* new_input = (INPUT*)malloc(sizeof(INPUT));
-    new_input->index = index;
+    new_input->target_index = target_index;
     new_input->value = value;
     new_input->next = NULL;
-    return new_input;
-}
+    new_input->prev = NULL;
 
-// Initialize the hash table
-HashTable* create_table(int size) {
-    HashTable* hashTable = (HashTable*)malloc(sizeof(HashTable));
-    hashTable->size = size;
-    hashTable->table = (INPUT**)malloc(sizeof(INPUT*) * size);
-    for (int i = 0; i < size; i++) {
-        hashTable->table[i] = NULL;
-    }
-    return hashTable;
-}
-
-// Insert or update an input
-void insert(HashTable* hashTable, int index, double value) {
-    unsigned int hashIndex = hash(index, hashTable->size);
-    INPUT* current = hashTable->table[hashIndex];
-    
-    // Check if index already exists and update value
-    while (current != NULL) {
-        if (current->index == index) {
-            current->value += value;
-            return;
+    if (input_list->size == 0) {
+        input_list->head = new_input;
+        input_list->tail = new_input;
+    } else {
+        INPUT* cur_input = input_list->head;
+        while (cur_input != NULL) {
+            if (cur_input->target_index == target_index) {
+                cur_input->value += value;
+                return;
+            } else {
+                cur_input = cur_input->next;
+            }
         }
-        current = current->next;
-    }
+        input_list->tail->next = new_input;
+        new_input->prev = input_list->tail;
+        input_list->tail = new_input;
 
-    // If index does not exist, create a new entry
-    INPUT* new_input = create_input(index, value);
-    new_input->next = hashTable->table[hashIndex];
-    hashTable->table[hashIndex] = new_input;
+    }
+    input_list->size++;
 }
 
-// Reset the value of an input
-void reset(HashTable* hashTable, int index) {
-    unsigned int hashIndex = hash(index, hashTable->size);
-    INPUT* current = hashTable->table[hashIndex];
-    
-    // Check if index exists and reset value
-    while (current != NULL) {
-        if (current->index == index) {
-            current->value = 0.0;
-            return;
-        }
-        current = current->next;
+void clear_input_list(INPUT_LIST* input_list) {
+    INPUT* cur_input = input_list->head;
+    while (cur_input != NULL) {
+        INPUT* next_input = cur_input->next;
+        free(cur_input);
+        cur_input = next_input;
     }
+    input_list->head = NULL;
+    input_list->tail = NULL;
+    input_list->size = 0;
 }
 
-// Iterate over all elements
-void iterate(HashTable* hashTable) {
-    for (int i = 0; i < hashTable->size; i++) {
-        INPUT* current = hashTable->table[i];
-        while (current != NULL) {
-            printf("Index: %d, Value: %f\n", current->index, current->value);
-            current = current->next;
-        }
+void print_input_list(INPUT_LIST* input_list) {
+    INPUT* cur_input = input_list->head;
+    if (cur_input == NULL) {
+        printf("Empty\n");
+        return;
     }
-}
 
-// Free the hash table
-void free_table(HashTable* hashTable) {
-    for (int i = 0; i < hashTable->size; i++) {
-        INPUT* current = hashTable->table[i];
-        while (current != NULL) {
-            INPUT* to_free = current;
-            current = current->next;
-            free(to_free);
-        }
+    while (cur_input != NULL) {
+        printf("target_index: %d, value: %f\n", cur_input->target_index, cur_input->value);
+        cur_input = cur_input->next;
     }
-    free(hashTable->table);
-    free(hashTable);
 }
 
 
@@ -118,19 +106,6 @@ typedef struct {
 //////////////////////////////////////////////////////////////////////
 
 int main() {
-    // HashTable* hashTable = create_table(10);
-    
-    // insert(hashTable, 1, 10.5);
-    // insert(hashTable, 2, 20.5);
-    // insert(hashTable, 1, 5.0);
-    // insert(hashTable, 15, 30.5);  // This will collide with index 1 if size is 10
-
-    // iterate(hashTable);
-    
-    // free_table(hashTable);
-
-
-
 
     // Define the number of neurons in each layer
     int layer_sizes[] = {2, 3, 2};
@@ -182,33 +157,42 @@ int main() {
         }
     }
 
-    // Create array of hash tables, one for each neuron layer, including the input layer
-    HashTable** inputs = (HashTable**)malloc(num_layers * sizeof(HashTable*));
-    // initialize all hash to be empty
+    // Create a list of input lists for each layer
+    INPUT_LIST** input_lists = (INPUT_LIST**)malloc(num_layers * sizeof(INPUT_LIST*));
     for (int i = 0; i < num_layers; i++) {
-        inputs[i] = create_table(layer_sizes[i]);
+        input_lists[i] = create_input_list(layer_sizes[i]);
+    }
+    
+
+    // Print the input list for each layer
+    printf("Input lists for each layer\n");
+    for (int i = 0; i < num_layers; i++) {
+        printf("Layer %d\n", i);
+        print_input_list(input_lists[i]);
+        printf("\n");
     }
 
-
-    // Setup
+    ////////////////////////////////////// SETUP //////////////////////////////////////
     long double time = 0.0;
     int output_spike = 0;
     // insert inputs to first inputs hash table
-    insert(inputs[0], 0, 1.0);
-    insert(inputs[0], 1, 1.0);
+    insert_input(input_lists[0], 0, 1.0);
+    insert_input(input_lists[0], 1, 1.0);
 
     // Main Loop
     printf("\nStarting simulation...\n");
-    while (time < 10.0) {
+    while (time < 4.0) {
         printf("\n###########################################\nTime: %Lf\n", time);
 
-        // introduce input after 5 seconds
-        if (time == 5.0) {
-            insert(inputs[0], 0, 1.0);
-            insert(inputs[0], 1, 1.0);
-        }
+        // // introduce input after 5 seconds
+        // if (time == 2.0) {
+        //     printf("\nIntroducing new input at time %Lf\n", time);
+        //     insert_input(input_lists[0], 0, 1.0);
+        //     insert_input(input_lists[0], 1, 1.0);
+        // }
 
         // Print all neurons
+        printf("\nSnapshot of neurons at time %Lf\n", time);
         for (int i = 0; i < num_layers; i++) {
             printf("\nLayer %d neurons:\n", i);
             for (int j = 0; j < layer_sizes[i]; j++) {
@@ -216,20 +200,38 @@ int main() {
             }
         }
 
+        // Print all inputs
+        printf("\nSnapshot of inputs at time %Lf\n", time);
+        for (int i = 0; i < num_layers; i++) {
+            printf("Layer %d\n", i);
+            print_input_list(input_lists[i]);
+            printf("\n");
+        }
+
+        printf("\nPerforming updates...\n");
+
         for (int layer_idx = num_layers - 1; layer_idx > -1; layer_idx--) {
             
-            INPUT* current = inputs[layer_idx]->table[layer_idx];
+            INPUT* current = input_lists[layer_idx]->head;
+
+            printf("\nLooking for inputs at layer %d\n", layer_idx);
 
             // iterate through the inputs to the layer layer_idx
             while (current != NULL) {
 
-                int to_update_index = current->index;
+                printf("Current update task is for index %d with value %f\n", current->target_index, current->value);
+
+                int to_update_index = current->target_index;
                 double to_update_value = current->value;
 
                 LIFNeuron* neuron_to_update = &layers[layer_idx][to_update_index];
 
                 double time_since_last_spike = time - neuron_to_update->ts;
+                printf("Time since last spike: %f\n", time_since_last_spike);
+                printf("Old mp: %f\n", neuron_to_update->mp);
                 neuron_to_update->mp = RP + neuron_to_update->mp * (1.0 - exp(-time_since_last_spike)) + to_update_value;
+                printf("New mp: %f\n", neuron_to_update->mp);
+                
 
                 if (neuron_to_update->mp > ATH) {
                     printf("Neuron %d in layer %d spiked at time %Lf\n", to_update_index, layer_idx);
@@ -242,8 +244,7 @@ int main() {
                         for (int weight_idx = 0; weight_idx < layer_sizes[layer_idx + 1]; weight_idx++) {
                             double weight = weights[layer_idx][to_update_index][weight_idx];
                             if (weight > WTH) {
-                                // this is where the program breaks
-                                insert(inputs[layer_idx + 1], weight_idx, weight);
+                                insert_input(input_lists[layer_idx + 1], weight_idx, weight);
                             }
                         }
                     } else {
@@ -252,18 +253,15 @@ int main() {
 
                 }
 
-                reset(inputs[layer_idx], to_update_index); // reset the input after updating the neuron
-                
                 current = current->next; // move to the next input in the hash table
             }
-            
+            // Reset this layer's input list
+            clear_input_list(input_lists[layer_idx]);
         }
-        // printf("\n");
         time += DT;
     }
-    
-
-
     printf("\nDone!\n");
     return 0;
 }
+
+
