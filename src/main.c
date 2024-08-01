@@ -89,11 +89,23 @@ void print_input_list(INPUT_LIST* input_list) {
 
 
 
+///////////////////////////// PLOTTING //////////////////////////////////
 
-
-
+void mark_spike(int layer, int neuron, double time, double potential) {
+    FILE *file = fopen("bin/neuron_data.csv", "a");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+    fprintf(file, "%d,%d,%f,%f,spike\n", layer, neuron, time, potential);
+    fclose(file);
+}
 //////////////////////////////////////////////////////////////////////
-// GLOBAL VARIABLES
+
+
+
+
+////////////////////// GLOBAL CONSTANTS //////////////////////////////
 const double RP = 0.1;   // resting potential
 const double WTH = 0.01; // threshold for weights to count as connection
 const double ATH = 1.0;  // threshold for membrane potential to spike
@@ -127,6 +139,7 @@ int main() {
     }
     // manually setting some weights
     weights[0][0][0] = 0.5;
+    weights[1][0][0] = 0.5;
 
     // print all weights
     for (int i = 0; i < num_layers - 1; i++) {
@@ -175,21 +188,17 @@ int main() {
     ////////////////////////////////////// SETUP //////////////////////////////////////
     long double time = 0.0;
     int output_spike = 0;
-    // insert inputs to first inputs hash table
-    insert_input(input_lists[0], 0, 1.0);
-    insert_input(input_lists[0], 1, 1.0);
 
     // Main Loop
     printf("\nStarting simulation...\n");
-    while (time < 4.0) {
+    while (time < 7.0) {
         printf("\n###########################################\nTime: %Lf\n", time);
 
-        // // introduce input after 5 seconds
-        // if (time == 2.0) {
-        //     printf("\nIntroducing new input at time %Lf\n", time);
-        //     insert_input(input_lists[0], 0, 1.0);
-        //     insert_input(input_lists[0], 1, 1.0);
-        // }
+        // Introduce new input
+        printf("\nIntroducing new input at time %Lf\n", time);
+        insert_input(input_lists[0], 0, 1.0);
+        insert_input(input_lists[0], 1, 1.0);
+        
 
         // Print all neurons
         printf("\nSnapshot of neurons at time %Lf\n", time);
@@ -229,15 +238,23 @@ int main() {
                 double time_since_last_spike = time - neuron_to_update->ts;
                 printf("Time since last spike: %f\n", time_since_last_spike);
                 printf("Old mp: %f\n", neuron_to_update->mp);
+
+
                 neuron_to_update->mp = RP + neuron_to_update->mp * (1.0 - exp(-time_since_last_spike)) + to_update_value;
                 printf("New mp: %f\n", neuron_to_update->mp);
+
+
                 
 
                 if (neuron_to_update->mp > ATH) {
                     printf("Neuron %d in layer %d spiked at time %Lf\n", to_update_index, layer_idx);
 
+                    // Mark the spike in the csv file
+                    mark_spike(layer_idx, to_update_index, time, neuron_to_update->mp);
+
                     neuron_to_update->ts = time;
                     neuron_to_update->mp = RP;
+
 
                     // If this is not the last layer, update the inputs to the next layer
                     if (layer_idx < num_layers - 1) {
