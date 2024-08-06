@@ -1,96 +1,284 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 
-typedef struct {
-    double tau; // membrane time constant
-    double rp;  // resting potential
-    double ath; // activation threshold
-    double mp;  // membrane potential    
-} LIFNeuron;
+///////////////////////////// INPUT LIST //////////////////////////////////
 
-bool LIF_update(LIFNeuron *self, double input, double dt) {
-    double dmp = (-(self->mp - self->rp) + input) * (dt / self->tau);
-    self->mp += dmp;
+typedef struct INPUT {
+    int target_index;
+    double value;
+    struct INPUT* next;
+    struct INPUT* prev;
+} INPUT;
 
-    if (self->mp >= self->ath) {
-        self->mp = self->rp; // reset to resting potential
-        printf("\nSpike!\n");
-        return true; // spike
+typedef struct INPUT_LIST {
+    INPUT* head;
+    INPUT* tail;
+    int size;
+    int max_size;
+} INPUT_LIST;
+
+INPUT_LIST* create_input_list(int max_size) {
+    INPUT_LIST* input_list = (INPUT_LIST*)malloc(sizeof(INPUT_LIST));
+    input_list->head = NULL;
+    input_list->tail = NULL;
+    input_list->size = 0;
+    input_list->max_size = max_size;
+    return input_list;
+}
+
+void insert_input(INPUT_LIST* input_list, int target_index, double value) {
+
+    if (input_list->max_size -1 < target_index) {
+        printf("Error: target index is out of range\n");
+        return;
+    }
+
+    INPUT* new_input = (INPUT*)malloc(sizeof(INPUT));
+    new_input->target_index = target_index;
+    new_input->value = value;
+    new_input->next = NULL;
+    new_input->prev = NULL;
+
+    if (input_list->size == 0) {
+        input_list->head = new_input;
+        input_list->tail = new_input;
     } else {
-        return false; // no spike
+        INPUT* cur_input = input_list->head;
+        while (cur_input != NULL) {
+            if (cur_input->target_index == target_index) {
+                cur_input->value += value;
+                return;
+            } else {
+                cur_input = cur_input->next;
+            }
+        }
+        input_list->tail->next = new_input;
+        new_input->prev = input_list->tail;
+        input_list->tail = new_input;
+
+    }
+    input_list->size++;
+}
+
+void clear_input_list(INPUT_LIST* input_list) {
+    INPUT* cur_input = input_list->head;
+    while (cur_input != NULL) {
+        INPUT* next_input = cur_input->next;
+        free(cur_input);
+        cur_input = next_input;
+    }
+    input_list->head = NULL;
+    input_list->tail = NULL;
+    input_list->size = 0;
+}
+
+void print_input_list(INPUT_LIST* input_list) {
+    INPUT* cur_input = input_list->head;
+    if (cur_input == NULL) {
+        printf("Empty\n");
+        return;
+    }
+
+    while (cur_input != NULL) {
+        printf("target_index: %d, value: %f\n", cur_input->target_index, cur_input->value);
+        cur_input = cur_input->next;
     }
 }
 
+
+
+///////////////////////////// PLOTTING //////////////////////////////////
+
+void mark_spike(int layer, int neuron, double time, double potential) {
+    FILE *file = fopen("bin/neuron_data.csv", "a");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+    fprintf(file, "%d,%d,%f,%f,spike\n", layer, neuron, time, potential);
+    fclose(file);
+}
+//////////////////////////////////////////////////////////////////////
+
+
+
+
+////////////////////// GLOBAL CONSTANTS //////////////////////////////
+const double RP = 0.1;   // resting potential
+const double WTH = 0.01; // threshold for weights to count as connection
+const double ATH = 1.0;  // threshold for membrane potential to spike
+const double DT = 1.0;   // time step
+// LIFNeuron struct
+typedef struct {
+    double mp; // membrane potential
+    double ts; // time-stamp of last spike
+} LIFNeuron;
+//////////////////////////////////////////////////////////////////////
 
 int main() {
 
-    LIFNeuron n0 = {6.0, 0.01, 0.1, 0.01};
+    // Define the number of neurons in each layer
+    int layer_sizes[] = {2, 3, 2};
+    int num_layers = sizeof(layer_sizes) / sizeof(layer_sizes[0]);
+    // Allocate memory for the array of layers
+    LIFNeuron** layers = (LIFNeuron**)malloc(num_layers * sizeof(LIFNeuron*));
+    // Allocate memory for the array of weight matrices
+    double*** weights = (double***)malloc((num_layers - 1) * sizeof(double**));
 
-    LIFNeuron * layer1 [3];
-    double weights1 [3] = {0.3, 0.5, 1.0};
-
-    // Step 3: Allocate memory for each LIFNeuron and assign it to the array
-    for (int i = 0; i < 3; i++) {
-        layer1[i] = (LIFNeuron *)malloc(sizeof(LIFNeuron));
-        if (layer1[i] == NULL) {
-            printf("Memory allocation failed\n");
-            return 1;
+    // Allocate memory for and initialize weights
+    for (int i = 0; i < num_layers - 1; i++) {
+        weights[i] = (double**)malloc(layer_sizes[i] * sizeof(double*));
+        for (int j = 0; j < layer_sizes[i]; j++) {
+            weights[i][j] = (double*)malloc(layer_sizes[i + 1] * sizeof(double));
+            for (int k = 0; k < layer_sizes[i + 1]; k++) {
+                weights[i][j][k] = 0.0; // You can initialize weights as needed
+            }
         }
+    }
+    // manually setting some weights
+    weights[0][0][0] = 0.5;
+    weights[1][0][0] = 0.5;
 
-        layer1[i]->tau = 6.0;
-        layer1[i]->rp = 0.01;
-        layer1[i]->ath = 0.06;
-        layer1[i]->mp = 0.01;
+    // print all weights
+    for (int i = 0; i < num_layers - 1; i++) {
+        printf("\nLayer %d to Layer %d weights:\n", i, i + 1);
+        for (int j = 0; j < layer_sizes[i]; j++) {
+            printf("Neuron %d: ", j);
+            for (int k = 0; k < layer_sizes[i + 1]; k++) {
+                printf("%f ", weights[i][j][k]);
+            }
+            printf("\n");
+        }
+    }
+
+    // Allocate memory for and initialize neurons
+    for (int i = 0; i < num_layers; i++) {
+        layers[i] = (LIFNeuron*)malloc(layer_sizes[i] * sizeof(LIFNeuron));
+        for (int j = 0; j < layer_sizes[i]; j++) {
+            layers[i][j].mp = RP;
+            layers[i][j].ts = 0.0;
+        }
+    }
+
+    // Print all neurons
+    for (int i = 0; i < num_layers; i++) {
+        printf("\nLayer %d neurons:\n", i);
+        for (int j = 0; j < layer_sizes[i]; j++) {
+            printf("Neuron %d: mp=%f, ts=%f\n", j, layers[i][j].mp, layers[i][j].ts);
+        }
+    }
+
+    // Create a list of input lists for each layer
+    INPUT_LIST** input_lists = (INPUT_LIST**)malloc(num_layers * sizeof(INPUT_LIST*));
+    for (int i = 0; i < num_layers; i++) {
+        input_lists[i] = create_input_list(layer_sizes[i]);
     }
     
 
-    FILE *fptr;
+    // Print the input list for each layer
+    printf("Input lists for each layer\n");
+    for (int i = 0; i < num_layers; i++) {
+        printf("Layer %d\n", i);
+        print_input_list(input_lists[i]);
+        printf("\n");
+    }
 
-    // Open a file in writing mode
-    fptr = fopen("bin/tmp_output.csv", "w+");
+    ////////////////////////////////////// SETUP //////////////////////////////////////
+    long double time = 0.0;
+    int output_spike = 0;
 
-    // Write some text to the file
-    fprintf(fptr, "Time,MemPot0,MemPot1,MemPot2,MemPot3\n");
-    
-    double dt = 0.1;
-    double t = 0.0;
-    double inputs[100] = {0};
+    // Main Loop
+    printf("\nStarting simulation...\n");
+    while (time < 7.0) {
+        printf("\n###########################################\nTime: %Lf\n", time);
 
-    inputs[0] = 2;
-    inputs[17] = 2;
-    inputs[30] = 2;
-    inputs[50] = 2;
-    inputs[56] = 2;
-    inputs[64] = 2;
-    inputs[70] = 2;
-    inputs[80] = 2;
+        // Introduce new input
+        printf("\nIntroducing new input at time %Lf\n", time);
+        insert_input(input_lists[0], 0, 1.0);
+        insert_input(input_lists[0], 1, 1.0);
+        
 
-    fprintf(fptr, "%f,%f,%f,%f,%f\n", t, n0.mp, layer1[0]->mp, layer1[1]->mp, layer1[2]->mp);
-    for (int i = 0; i < 100; i++) {
-        t += dt;
-        bool spike0 = LIF_update(&n0, inputs[i], dt);
-        if (spike0) {
-            bool spike1 = LIF_update(layer1[0], 2.0*weights1[0], dt);
-            bool spike2 = LIF_update(layer1[1], 2.0*weights1[1], dt);
-            bool spike3 = LIF_update(layer1[2], 2.0*weights1[2], dt);
-        } else {
-            LIF_update(layer1[0], 0.0, dt);
-            LIF_update(layer1[1], 0.0, dt);
-            LIF_update(layer1[2], 0.0, dt);
+        // Print all neurons
+        printf("\nSnapshot of neurons at time %Lf\n", time);
+        for (int i = 0; i < num_layers; i++) {
+            printf("\nLayer %d neurons:\n", i);
+            for (int j = 0; j < layer_sizes[i]; j++) {
+                printf("Neuron %d: mp=%f, ts=%f\n", j, layers[i][j].mp, layers[i][j].ts);
+            }
         }
-        fprintf(fptr, "%f,%f,%f,%f,%f\n", t, n0.mp, layer1[0]->mp, layer1[1]->mp, layer1[2]->mp);
+
+        // Print all inputs
+        printf("\nSnapshot of inputs at time %Lf\n", time);
+        for (int i = 0; i < num_layers; i++) {
+            printf("Layer %d\n", i);
+            print_input_list(input_lists[i]);
+            printf("\n");
+        }
+
+        printf("\nPerforming updates...\n");
+
+        for (int layer_idx = num_layers - 1; layer_idx > -1; layer_idx--) {
+            
+            INPUT* current = input_lists[layer_idx]->head;
+
+            printf("\nLooking for inputs at layer %d\n", layer_idx);
+
+            // iterate through the inputs to the layer layer_idx
+            while (current != NULL) {
+
+                printf("Current update task is for index %d with value %f\n", current->target_index, current->value);
+
+                int to_update_index = current->target_index;
+                double to_update_value = current->value;
+
+                LIFNeuron* neuron_to_update = &layers[layer_idx][to_update_index];
+
+                double time_since_last_spike = time - neuron_to_update->ts;
+                printf("Time since last spike: %f\n", time_since_last_spike);
+                printf("Old mp: %f\n", neuron_to_update->mp);
+
+
+                neuron_to_update->mp = RP + neuron_to_update->mp * (1.0 - exp(-time_since_last_spike)) + to_update_value;
+                printf("New mp: %f\n", neuron_to_update->mp);
+
+
+                
+
+                if (neuron_to_update->mp > ATH) {
+                    printf("Neuron %d in layer %d spiked at time %Lf\n", to_update_index, layer_idx);
+
+                    // Mark the spike in the csv file
+                    mark_spike(layer_idx, to_update_index, time, neuron_to_update->mp);
+
+                    neuron_to_update->ts = time;
+                    neuron_to_update->mp = RP;
+
+
+                    // If this is not the last layer, update the inputs to the next layer
+                    if (layer_idx < num_layers - 1) {
+                        for (int weight_idx = 0; weight_idx < layer_sizes[layer_idx + 1]; weight_idx++) {
+                            double weight = weights[layer_idx][to_update_index][weight_idx];
+                            if (weight > WTH) {
+                                insert_input(input_lists[layer_idx + 1], weight_idx, weight);
+                            }
+                        }
+                    } else {
+                        output_spike = 1;
+                    }
+
+                }
+
+                current = current->next; // move to the next input in the hash table
+            }
+            // Reset this layer's input list
+            clear_input_list(input_lists[layer_idx]);
+        }
+        time += DT;
     }
-
-    // // Close the file
-    // fclose(fptr);
-
-
-    // Don't forget to free the allocated memory
-    for (int i = 0; i < 3; i++) {
-        free(layer1[i]);
-    }
-
     printf("\nDone!\n");
     return 0;
 }
+
+

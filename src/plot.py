@@ -1,29 +1,42 @@
-# This script is created with ChatGPT
+# This script is generated using chatGPT
 
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Load the data
-file_path = "bin/tmp_output.csv"
-data = pd.read_csv(file_path)
+# Load data
+data = pd.read_csv("bin/neuron_data.csv", header=None, names=["layer", "neuron", "time", "potential", "spike"])
 
-# Create subplots with shared x-axis
-fig, axs = plt.subplots(4, 1, sharex=True, figsize=(10, 8))
+# Define the number of neurons per layer
+neurons_per_layer = [2, 3, 2]
 
-# Plot each MemPot
-axs[0].plot(data['Time'], data['MemPot0'])
-axs[0].set_ylabel('MemPot 0')
+# Calculate the total number of neurons
+total_neurons = sum(neurons_per_layer)
 
-axs[1].plot(data['Time'], data['MemPot1'])
-axs[1].set_ylabel('MemPot 1')
+# Create a figure with subplots for each neuron
+fig, axes = plt.subplots(total_neurons, 1, figsize=(10, total_neurons * 2), sharex=True)
 
-axs[2].plot(data['Time'], data['MemPot2'])
-axs[2].set_ylabel('MemPot 2')
+# Ensure axes is always iterable
+if total_neurons == 1:
+    axes = [axes]
 
-axs[3].plot(data['Time'], data['MemPot3'])
-axs[3].set_ylabel('MemPot 3')
-axs[3].set_xlabel('Time')
+current_row = 0
 
-# Adjust layout
+for layer, num_neurons in enumerate(neurons_per_layer):
+    for neuron in range(num_neurons):
+        neuron_data = data[(data["layer"] == layer) & (data["neuron"] == neuron)]
+        ax = axes[current_row]
+        
+        # Plot spikes as red points
+        spikes = neuron_data[neuron_data["spike"] == "spike"]
+        ax.scatter(spikes["time"], spikes["potential"], color='red')
+        
+        ax.set_title(f"Layer {layer} - Neuron {neuron} Spikes")
+        ax.set_ylabel("Membr. Pot. (mV)")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylim(bottom=0)  # Ensure y-axis starts at 0
+        
+        current_row += 1
+
+plt.xlabel("Time (s)")
 plt.tight_layout()
 plt.show()
