@@ -120,10 +120,12 @@ typedef struct {
 int main() {
 
     // Define the number of neurons in each layer
-    int layer_sizes[] = {2, 3, 2};
+    int layer_sizes[] = {16, 20, 20, 100, 20, 4};
     int num_layers = sizeof(layer_sizes) / sizeof(layer_sizes[0]);
+
     // Allocate memory for the array of layers
     LIFNeuron** layers = (LIFNeuron**)malloc(num_layers * sizeof(LIFNeuron*));
+
     // Allocate memory for the array of weight matrices
     double*** weights = (double***)malloc((num_layers - 1) * sizeof(double**));
 
@@ -137,6 +139,7 @@ int main() {
             }
         }
     }
+    
     // manually setting some weights
     weights[0][0][0] = 0.5;
     weights[1][0][0] = 0.5;
@@ -187,7 +190,10 @@ int main() {
 
     ////////////////////////////////////// SETUP //////////////////////////////////////
     long double time = 0.0;
-    int output_spike = 0;
+    int output_buffer[layer_sizes[num_layers - 1]];
+    for (int i = 0; i < layer_sizes[num_layers - 1]; i++) {
+        output_buffer[i] = 0;
+    }
 
     // Main Loop
     printf("\nStarting simulation...\n");
@@ -219,16 +225,9 @@ int main() {
 
         printf("\nPerforming updates...\n");
 
-        for (int layer_idx = num_layers - 1; layer_idx > -1; layer_idx--) {
-            
+        for (int layer_idx = 0; layer_idx < num_layers; layer_idx++) {
             INPUT* current = input_lists[layer_idx]->head;
-
-            printf("\nLooking for inputs at layer %d\n", layer_idx);
-
-            // iterate through the inputs to the layer layer_idx
             while (current != NULL) {
-
-                printf("Current update task is for index %d with value %f\n", current->target_index, current->value);
 
                 int to_update_index = current->target_index;
                 double to_update_value = current->value;
@@ -236,21 +235,10 @@ int main() {
                 LIFNeuron* neuron_to_update = &layers[layer_idx][to_update_index];
 
                 double time_since_last_spike = time - neuron_to_update->ts;
-                printf("Time since last spike: %f\n", time_since_last_spike);
-                printf("Old mp: %f\n", neuron_to_update->mp);
-
 
                 neuron_to_update->mp = RP + neuron_to_update->mp * (1.0 - exp(-time_since_last_spike)) + to_update_value;
-                printf("New mp: %f\n", neuron_to_update->mp);
-
-
-                
 
                 if (neuron_to_update->mp > ATH) {
-                    printf("Neuron %d in layer %d spiked at time %Lf\n", to_update_index, layer_idx);
-
-                    // Mark the spike in the csv file
-                    mark_spike(layer_idx, to_update_index, time, neuron_to_update->mp);
 
                     neuron_to_update->ts = time;
                     neuron_to_update->mp = RP;
@@ -265,18 +253,55 @@ int main() {
                             }
                         }
                     } else {
-                        output_spike = 1;
+                        output_buffer[to_update_index] = 1;
                     }
 
                 }
-
                 current = current->next; // move to the next input in the hash table
             }
             // Reset this layer's input list
             clear_input_list(input_lists[layer_idx]);
         }
+
+        // Check the output buffer
+        for (int i = 0; i < layer_sizes[num_layers - 1]; i++) {
+            printf("Output %d: %d\n", i, output_buffer[i]);
+            output_buffer[i] = 0; // Reset this output
+        }
+
+        // Advance time
         time += DT;
     }
+
+
+
+    //////////////////////////////////////////// CLEANUP ////////////////////////////////////////////
+
+
+    // Free layers list
+    for (int i = 0; i < num_layers; i++) {
+        free(layers[i]);
+    }
+
+    // Free input lists
+    for (int i = 0; i < num_layers; i++) {
+        free(input_lists[i]);
+    }
+
+    // Free weights list
+    for (int i = 0; i < num_layers - 1; i++) {
+        for (int j = 0; j < layer_sizes[i]; j++) {
+            free(weights[i][j]);
+        }
+        free(weights[i]);
+    }
+
+    // Free layer sizes OBS double check this
+    free(layers);
+    free(input_lists);
+    free(weights);
+    
+    //////////////////////////////////////////// END ////////////////////////////////////////////
     printf("\nDone!\n");
     return 0;
 }
