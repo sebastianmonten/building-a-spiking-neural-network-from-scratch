@@ -12,25 +12,25 @@ typedef struct INPUT {
     struct INPUT* prev;
 } INPUT;
 
-typedef struct INPUT_LIST {
+typedef struct INPUT_QUEUE {
     INPUT* head;
     INPUT* tail;
     int size;
     int max_size;
-} INPUT_LIST;
+} INPUT_QUEUE;
 
-INPUT_LIST* create_input_list(int max_size) {
-    INPUT_LIST* input_list = (INPUT_LIST*)malloc(sizeof(INPUT_LIST));
-    input_list->head = NULL;
-    input_list->tail = NULL;
-    input_list->size = 0;
-    input_list->max_size = max_size;
-    return input_list;
+INPUT_QUEUE* create_input_queue(int max_size) {
+    INPUT_QUEUE* input_queue = (INPUT_QUEUE*)malloc(sizeof(INPUT_QUEUE));
+    input_queue->head = NULL;
+    input_queue->tail = NULL;
+    input_queue->size = 0;
+    input_queue->max_size = max_size;
+    return input_queue;
 }
 
-void insert_input(INPUT_LIST* input_list, int target_index, double value) {
+void insert_input(INPUT_QUEUE* input_queue, int target_index, double value) {
 
-    if (input_list->max_size -1 < target_index) {
+    if (input_queue->max_size -1 < target_index) {
         printf("Error: target index is out of range\n");
         return;
     }
@@ -41,11 +41,11 @@ void insert_input(INPUT_LIST* input_list, int target_index, double value) {
     new_input->next = NULL;
     new_input->prev = NULL;
 
-    if (input_list->size == 0) {
-        input_list->head = new_input;
-        input_list->tail = new_input;
+    if (input_queue->size == 0) {
+        input_queue->head = new_input;
+        input_queue->tail = new_input;
     } else {
-        INPUT* cur_input = input_list->head;
+        INPUT* cur_input = input_queue->head;
         while (cur_input != NULL) {
             if (cur_input->target_index == target_index) {
                 cur_input->value += value;
@@ -54,33 +54,32 @@ void insert_input(INPUT_LIST* input_list, int target_index, double value) {
                 cur_input = cur_input->next;
             }
         }
-        input_list->tail->next = new_input;
-        new_input->prev = input_list->tail;
-        input_list->tail = new_input;
+        input_queue->tail->next = new_input;
+        new_input->prev = input_queue->tail;
+        input_queue->tail = new_input;
 
     }
-    input_list->size++;
+    input_queue->size++;
 }
 
-void clear_input_list(INPUT_LIST* input_list) {
-    INPUT* cur_input = input_list->head;
+void clear_input_queue(INPUT_QUEUE* input_queue) {
+    INPUT* cur_input = input_queue->head;
     while (cur_input != NULL) {
         INPUT* next_input = cur_input->next;
         free(cur_input);
         cur_input = next_input;
     }
-    input_list->head = NULL;
-    input_list->tail = NULL;
-    input_list->size = 0;
+    input_queue->head = NULL;
+    input_queue->tail = NULL;
+    input_queue->size = 0;
 }
 
-void print_input_list(INPUT_LIST* input_list) {
-    INPUT* cur_input = input_list->head;
+void print_input_queue(INPUT_QUEUE* input_queue) {
+    INPUT* cur_input = input_queue->head;
     if (cur_input == NULL) {
         printf("Empty\n");
         return;
     }
-
     while (cur_input != NULL) {
         printf("target_index: %d, value: %f\n", cur_input->target_index, cur_input->value);
         cur_input = cur_input->next;
@@ -89,19 +88,6 @@ void print_input_list(INPUT_LIST* input_list) {
 
 
 
-///////////////////////////// PLOTTING //////////////////////////////////
-
-void mark_spike(int layer, int neuron, double time, double potential) {
-    FILE *file = fopen("bin/neuron_data.csv", "a");
-    if (file == NULL) {
-        perror("Failed to open file");
-        return;
-    }
-    fprintf(file, "%d,%d,%f,%f,spike\n", layer, neuron, time, potential);
-    fclose(file);
-}
-//////////////////////////////////////////////////////////////////////
-
 
 
 
@@ -109,19 +95,64 @@ void mark_spike(int layer, int neuron, double time, double potential) {
 const double RP = 0.1;   // resting potential
 const double WTH = 0.01; // threshold for weights to count as connection
 const double ATH = 1.0;  // threshold for membrane potential to spike
-const double DT = 1.0;   // time step
-// LIFNeuron struct
+const double DT = 0.1;   // time step
+const double MAX_TIME = 7.0; // maximum time for simulation
+const double TAU = 2.0;  // time constant
+const double time_tolerance = 0.0001; // tolerance for time comparisons
+//////////////////////////////////////////////////////////////////////
+
+
+////////////////////// LIFNeuron struct //////////////////////////////
 typedef struct {
     double mp; // membrane potential
     double ts; // time-stamp of last spike
 } LIFNeuron;
 //////////////////////////////////////////////////////////////////////
 
+
+
+///////////////////////////// PLOTTING //////////////////////////////////
+void mark_point(int layer, int neuron, double time, double potential) {
+    FILE *file = fopen("tmp/neuron_data.csv", "a");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+
+    // If the file is empty, add headers
+    fseek(file, 0, SEEK_END);
+    // Check if the file is empty
+    if (ftell(file) == 0) {
+        // Add headers to the CSV file
+        fprintf(file, "layer,neuron,time,potential\n");
+    }
+
+    // Make an entry in the CSV file
+    fprintf(file, "%d,%d,%f,%f\n", layer, neuron, time, potential);
+    fclose(file);
+}
+//////////////////////////////////////////////////////////////////////
+
+
+
 int main() {
 
     // Define the number of neurons in each layer
-    int layer_sizes[] = {16, 20, 20, 100, 20, 4};
+    int layer_sizes[] = {2, 2, 1}; // {16, 20, 20, 100, 20, 4};
     int num_layers = sizeof(layer_sizes) / sizeof(layer_sizes[0]);
+
+
+    // Record the layer dimensions
+    FILE *file = fopen("tmp/layer_dimensions.csv", "a");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+    fprintf(file, "neurons\n");
+    for (int i = 0; i < num_layers; i++) {
+        fprintf(file, "%d\n", layer_sizes[i]);
+    }
+    fclose(file);
 
     // Allocate memory for the array of layers
     LIFNeuron** layers = (LIFNeuron**)malloc(num_layers * sizeof(LIFNeuron*));
@@ -142,6 +173,7 @@ int main() {
     
     // manually setting some weights
     weights[0][0][0] = 0.5;
+    weights[0][0][1] = 0.2;
     weights[1][0][0] = 0.5;
 
     // print all weights
@@ -173,23 +205,25 @@ int main() {
         }
     }
 
-    // Create a list of input lists for each layer
-    INPUT_LIST** input_lists = (INPUT_LIST**)malloc(num_layers * sizeof(INPUT_LIST*));
+    // Create a queue of input queues for each layer
+    INPUT_QUEUE** input_queues = (INPUT_QUEUE**)malloc(num_layers * sizeof(INPUT_QUEUE*));
     for (int i = 0; i < num_layers; i++) {
-        input_lists[i] = create_input_list(layer_sizes[i]);
+        input_queues[i] = create_input_queue(layer_sizes[i]);
     }
     
 
-    // Print the input list for each layer
-    printf("Input lists for each layer\n");
+    // Print the input queue for each layer
+    printf("Input queues for each layer\n");
     for (int i = 0; i < num_layers; i++) {
         printf("Layer %d\n", i);
-        print_input_list(input_lists[i]);
+        print_input_queue(input_queues[i]);
         printf("\n");
     }
 
     ////////////////////////////////////// SETUP //////////////////////////////////////
     long double time = 0.0;
+    int counter = 0;
+
     int output_buffer[layer_sizes[num_layers - 1]];
     for (int i = 0; i < layer_sizes[num_layers - 1]; i++) {
         output_buffer[i] = 0;
@@ -197,13 +231,15 @@ int main() {
 
     // Main Loop
     printf("\nStarting simulation...\n");
-    while (time < 7.0) {
+    while (time < MAX_TIME) {
         printf("\n###########################################\nTime: %Lf\n", time);
 
-        // Introduce new input
-        printf("\nIntroducing new input at time %Lf\n", time);
-        insert_input(input_lists[0], 0, 1.0);
-        insert_input(input_lists[0], 1, 1.0);
+        
+        if (counter % 10 == 0) {
+            printf("Inserting input at time %Lf\n", time);
+            insert_input(input_queues[0], 0, 1.0);
+
+        }
         
 
         // Print all neurons
@@ -215,18 +251,10 @@ int main() {
             }
         }
 
-        // Print all inputs
-        printf("\nSnapshot of inputs at time %Lf\n", time);
-        for (int i = 0; i < num_layers; i++) {
-            printf("Layer %d\n", i);
-            print_input_list(input_lists[i]);
-            printf("\n");
-        }
-
         printf("\nPerforming updates...\n");
 
         for (int layer_idx = 0; layer_idx < num_layers; layer_idx++) {
-            INPUT* current = input_lists[layer_idx]->head;
+            INPUT* current = input_queues[layer_idx]->head;
             while (current != NULL) {
 
                 int to_update_index = current->target_index;
@@ -234,36 +262,50 @@ int main() {
 
                 LIFNeuron* neuron_to_update = &layers[layer_idx][to_update_index];
 
-                double time_since_last_spike = time - neuron_to_update->ts;
+                // Go though the time steps and update the membrane potential
+                double time_i = neuron_to_update->ts;
+                while(time_i < time - time_tolerance) {
+                    time_i += DT;
+                    neuron_to_update-> mp += -(neuron_to_update->mp - RP) * DT / TAU;
+                    mark_point(layer_idx, to_update_index, time_i, neuron_to_update->mp);
+                    
+                }
+                // Add the new input to the current mp
+                neuron_to_update->mp += to_update_value;
+                mark_point(layer_idx, to_update_index, time_i, neuron_to_update->mp);
 
-                neuron_to_update->mp = RP + neuron_to_update->mp * (1.0 - exp(-time_since_last_spike)) + to_update_value;
+                // Update the time-stamp of the last update
+                neuron_to_update->ts = time;
 
                 if (neuron_to_update->mp > ATH) {
 
-                    neuron_to_update->ts = time;
-                    neuron_to_update->mp = RP;
+                    printf("Neuron %d in layer %d spiked at time %Lf\n", to_update_index, layer_idx, time);
 
+                    neuron_to_update->mp = RP; // Reset the membrane potential
+
+                    mark_point(layer_idx, to_update_index, time, neuron_to_update->mp); // Mark the spike as a vertical line down to RP
 
                     // If this is not the last layer, update the inputs to the next layer
                     if (layer_idx < num_layers - 1) {
                         for (int weight_idx = 0; weight_idx < layer_sizes[layer_idx + 1]; weight_idx++) {
                             double weight = weights[layer_idx][to_update_index][weight_idx];
                             if (weight > WTH) {
-                                insert_input(input_lists[layer_idx + 1], weight_idx, weight);
+                                
+                                insert_input(input_queues[layer_idx + 1], weight_idx, weight);
                             }
                         }
                     } else {
                         output_buffer[to_update_index] = 1;
                     }
-
                 }
-                current = current->next; // move to the next input in the hash table
+                current = current->next; // Move to the next input in the queue
             }
-            // Reset this layer's input list
-            clear_input_list(input_lists[layer_idx]);
+            // Reset this layer's input queue
+            clear_input_queue(input_queues[layer_idx]);
         }
 
         // Check the output buffer
+        printf("\n");
         for (int i = 0; i < layer_sizes[num_layers - 1]; i++) {
             printf("Output %d: %d\n", i, output_buffer[i]);
             output_buffer[i] = 0; // Reset this output
@@ -271,6 +313,7 @@ int main() {
 
         // Advance time
         time += DT;
+        counter++;
     }
 
 
@@ -285,7 +328,7 @@ int main() {
 
     // Free input lists
     for (int i = 0; i < num_layers; i++) {
-        free(input_lists[i]);
+        free(input_queues[i]);
     }
 
     // Free weights list
@@ -298,7 +341,7 @@ int main() {
 
     // Free layer sizes OBS double check this
     free(layers);
-    free(input_lists);
+    free(input_queues);
     free(weights);
     
     //////////////////////////////////////////// END ////////////////////////////////////////////
