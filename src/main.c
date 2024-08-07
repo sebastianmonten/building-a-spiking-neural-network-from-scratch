@@ -98,7 +98,7 @@ const double ATH = 1.0;  // threshold for membrane potential to spike
 const double DT = 0.1;   // time step
 const double MAX_TIME = 7.0; // maximum time for simulation
 const double TAU = 2.0;  // time constant
-const double time_tolerance = 0.0001; // tolerance for time comparisons
+const double TIME_TOLERANCE = 0.0001; // tolerance for time comparisons
 //////////////////////////////////////////////////////////////////////
 
 
@@ -112,23 +112,59 @@ typedef struct {
 
 
 ///////////////////////////// PLOTTING //////////////////////////////////
+const char* NEURON_DATA_FILE_NAME = "tmp/neuron_data.csv";
+const char* LAYER_DIMENSIONS_FILE_NAME = "tmp/layer_dimensions.csv";
+
 void mark_point(int layer, int neuron, double time, double potential) {
-    FILE *file = fopen("tmp/neuron_data.csv", "a");
+    FILE *file = fopen(NEURON_DATA_FILE_NAME, "a");
     if (file == NULL) {
         perror("Failed to open file");
         return;
     }
 
-    // If the file is empty, add headers
-    fseek(file, 0, SEEK_END);
-    // Check if the file is empty
-    if (ftell(file) == 0) {
-        // Add headers to the CSV file
-        fprintf(file, "layer,neuron,time,potential\n");
-    }
-
     // Make an entry in the CSV file
     fprintf(file, "%d,%d,%f,%f\n", layer, neuron, time, potential);
+    fclose(file);
+}
+
+void add_headers() {
+    FILE *file = fopen(NEURON_DATA_FILE_NAME, "a");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+    // Add headers to the CSV file
+    fprintf(file, "layer,neuron,time,potential\n");
+    fclose(file);
+}
+
+void fill_in_plot(int layer, int neuron, double time_start, double time_end, double potential) {
+    FILE *file = fopen(NEURON_DATA_FILE_NAME, "a");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+
+    double time_i = time_start;
+    while(time_i < time_end - TIME_TOLERANCE) {
+        time_i += DT;
+        potential += -(potential - RP) * DT / TAU;
+        mark_point(layer, neuron, time_i, potential);
+        
+    }
+    fclose(file);
+}
+
+void write_layer_dimensions(int* layer_sizes, int num_layers) {
+    FILE *file = fopen(LAYER_DIMENSIONS_FILE_NAME, "a");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+    fprintf(file, "neurons\n");
+    for (int i = 0; i < num_layers; i++) {
+        fprintf(file, "%d\n", layer_sizes[i]);
+    }
     fclose(file);
 }
 //////////////////////////////////////////////////////////////////////
@@ -142,17 +178,8 @@ int main() {
     int num_layers = sizeof(layer_sizes) / sizeof(layer_sizes[0]);
 
 
-    // Record the layer dimensions
-    FILE *file = fopen("tmp/layer_dimensions.csv", "a");
-    if (file == NULL) {
-        perror("Failed to open file");
-        return;
-    }
-    fprintf(file, "neurons\n");
-    for (int i = 0; i < num_layers; i++) {
-        fprintf(file, "%d\n", layer_sizes[i]);
-    }
-    fclose(file);
+    // Record the layer dimensions to a csv file for plotting later
+    write_layer_dimensions(layer_sizes, num_layers);
 
     // Allocate memory for the array of layers
     LIFNeuron** layers = (LIFNeuron**)malloc(num_layers * sizeof(LIFNeuron*));
@@ -223,6 +250,7 @@ int main() {
     ////////////////////////////////////// SETUP //////////////////////////////////////
     long double time = 0.0;
     int counter = 0;
+    add_headers();
 
     int output_buffer[layer_sizes[num_layers - 1]];
     for (int i = 0; i < layer_sizes[num_layers - 1]; i++) {
@@ -257,26 +285,26 @@ int main() {
             INPUT* current = input_queues[layer_idx]->head;
             while (current != NULL) {
 
-                int to_update_index = current->target_index;
-                double to_update_value = current->value;
+                int to_update_index = current->target_index; // The index of the neuron to update
+                double to_update_value = current->value; // The input value to the neuron
 
                 LIFNeuron* neuron_to_update = &layers[layer_idx][to_update_index];
 
-                // Go though the time steps and update the membrane potential
-                double time_i = neuron_to_update->ts;
-                while(time_i < time - time_tolerance) {
-                    time_i += DT;
-                    neuron_to_update-> mp += -(neuron_to_update->mp - RP) * DT / TAU;
-                    mark_point(layer_idx, to_update_index, time_i, neuron_to_update->mp);
-                    
-                }
-                // Add the new input to the current mp
-                neuron_to_update->mp += to_update_value;
-                mark_point(layer_idx, to_update_index, time_i, neuron_to_update->mp);
+                double time_since_last_update = time - neuron_to_update->ts;
+                
+                // Add datapoints for the membrane potential between the last update and now
+                fill_in_plot(layer_idx, to_update_index, neuron_to_update->ts, time, neuron_to_update->mp);
 
-                // Update the time-stamp of the last update
+                // Calculate the new membrane potential after it has been leaking since the last update
+                neuron_to_update->mp = RP + (neuron_to_update->mp - RP) * exp(-time_since_last_update / TAU);
+                // Add the input and update the time stamp
+                neuron_to_update->mp += to_update_value; 
                 neuron_to_update->ts = time;
 
+                // Plot the increace in membrane potential as a new point at the same time as the last data point
+                mark_point(layer_idx, to_update_index, time, neuron_to_update->mp);
+                
+                // Check for spike
                 if (neuron_to_update->mp > ATH) {
 
                     printf("Neuron %d in layer %d spiked at time %Lf\n", to_update_index, layer_idx, time);
