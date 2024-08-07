@@ -2,41 +2,57 @@
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import itertools
+import matplotlib
 
-# Load data
-data = pd.read_csv("bin/neuron_data.csv", header=None, names=["layer", "neuron", "time", "potential", "spike"])
+# Use the Agg backend
+matplotlib.use('Agg')
 
-# Define the number of neurons per layer
-neurons_per_layer = [2, 3, 2]
+# Define a limit for neurons and layers
+MAX_NEURONS_PER_LAYER = 10
+MAX_LAYERS = 6
 
-# Calculate the total number of neurons
-total_neurons = sum(neurons_per_layer)
+# Read the layer dimensions CSV file
+layer_dimensions = pd.read_csv('tmp/layer_dimensions.csv')
 
-# Create a figure with subplots for each neuron
-fig, axes = plt.subplots(total_neurons, 1, figsize=(10, total_neurons * 2), sharex=True)
+# Ensure the layer dimensions do not exceed the limits
+if len(layer_dimensions) > MAX_LAYERS:
+    raise ValueError(f"Number of layers exceeds the maximum allowed ({MAX_LAYERS}).")
 
-# Ensure axes is always iterable
-if total_neurons == 1:
-    axes = [axes]
+if any(layer_dimensions['neurons'] > MAX_NEURONS_PER_LAYER):
+    raise ValueError(f"Number of neurons in a layer exceeds the maximum allowed ({MAX_NEURONS_PER_LAYER}).")
 
-current_row = 0
+# Read the neuron data CSV file
+data = pd.read_csv('tmp/neuron_data.csv')
 
-for layer, num_neurons in enumerate(neurons_per_layer):
+# Define distinct colors and line styles for the neurons
+colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k', 'orange', 'purple', 'brown']
+line_styles = ['-', '--', '-.', ':']
+color_line_combinations = list(itertools.product(colors, line_styles))
+
+# Create a figure and subplots
+fig, axes = plt.subplots(nrows=len(layer_dimensions), ncols=1, sharex=True, figsize=(10, 8))
+
+# Plot data for each layer
+for layer in range(len(layer_dimensions)):
+    num_neurons = layer_dimensions.iloc[layer]['neurons']
+    layer_data = data[data['layer'] == layer]
     for neuron in range(num_neurons):
-        neuron_data = data[(data["layer"] == layer) & (data["neuron"] == neuron)]
-        ax = axes[current_row]
-        
-        # Plot spikes as red points
-        spikes = neuron_data[neuron_data["spike"] == "spike"]
-        ax.scatter(spikes["time"], spikes["potential"], color='red')
-        
-        ax.set_title(f"Layer {layer} - Neuron {neuron} Spikes")
-        ax.set_ylabel("Membr. Pot. (mV)")
-        ax.set_xlabel("Time (s)")
-        ax.set_ylim(bottom=0)  # Ensure y-axis starts at 0
-        
-        current_row += 1
+        neuron_data = layer_data[layer_data['neuron'] == neuron]
+        color, line_style = color_line_combinations[neuron % len(color_line_combinations)]
+        axes[layer].plot(neuron_data['time'], neuron_data['potential'], label=f'Neuron {neuron}', color=color, linestyle=line_style)
+    
+    axes[layer].set_title(f'Layer {layer}')
+    axes[layer].set_ylabel('Potential')
+    axes[layer].legend()
+    axes[layer].set_ylim(0.1, 1.1)  # Set y-axis limits
 
-plt.xlabel("Time (s)")
+# Set x-axis label for the last subplot
+axes[-1].set_xlabel('Time')
+
+# Adjust layout
 plt.tight_layout()
-plt.show()
+
+# Save the plot or display
+plt.savefig('tmp/neuron_potentials.png')
+# plt.show() // Does not seem to work in wsl environment
