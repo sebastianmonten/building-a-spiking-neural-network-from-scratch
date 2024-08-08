@@ -173,7 +173,7 @@ void write_layer_dimensions(int* layer_sizes, int num_layers) {
 int main() {
 
     // Define the number of neurons in each layer
-    int layer_sizes[] = {2, 2, 1}; // {16, 20, 20, 100, 20, 4};
+    int layer_sizes[] = {2, 3, 2}; // {16, 20, 20, 100, 20, 4};
     int num_layers = sizeof(layer_sizes) / sizeof(layer_sizes[0]);
 
 
@@ -198,9 +198,7 @@ int main() {
     }
     
     // manually setting some weights
-    weights[0][0][0] = 0.5;
-    weights[0][0][1] = 0.2;
-    weights[1][0][0] = 0.5;
+    #include "../include/weights.h"
 
     // print all weights
     for (int i = 0; i < num_layers - 1; i++) {
