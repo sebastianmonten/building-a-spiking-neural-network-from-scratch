@@ -65,6 +65,8 @@ ETH_TxPacketConfig TxConfig;
 
 ETH_HandleTypeDef heth;
 
+TIM_HandleTypeDef htim16;
+
 UART_HandleTypeDef huart3;
 
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
@@ -79,6 +81,7 @@ static void MX_GPIO_Init(void);
 static void MX_ETH_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USB_OTG_FS_PCD_Init(void);
+static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -195,6 +198,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+	uint16_t timer_val; // for timer
 
   /* USER CODE END 1 */
 
@@ -219,9 +223,10 @@ int main(void)
   MX_ETH_Init();
   MX_USART3_UART_Init();
   MX_USB_OTG_FS_PCD_Init();
+  MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
-  /* USER CODE END 2 */
+
 
   // Define the number of neurons in each layer
   int layer_sizes[] = {16, 20, 20, 100, 20, 4};
@@ -247,40 +252,8 @@ int main(void)
       }
   }
 
-  // manually setting some weights
-  weights[0][0][0] = 0.9566007951763376;
-  weights[0][1][0] = 0.8124301063990329;
-  weights[0][2][1] = 0.7366283239748567;
-  weights[0][3][3] = 0.796525367655762;
-  weights[0][4][4] = 0.9873246941500416;
-  weights[0][5][16] = 0.7745873263742765;
-  weights[0][6][19] = 0.8891613941035854;
-  weights[0][7][3] = 0.9161894407462406;
-  weights[0][8][0] = 0.7530420773023409;
-  weights[0][9][1] = 0.6401370211460118;
-  weights[0][10][7] = 0.9542160048036938;
-  weights[0][11][10] = 0.7385716940068183;
-  weights[0][12][11] = 0.8147650047705076;
-  weights[0][13][8] = 0.6105148952250679;
-  weights[0][14][8] = 0.9158494226216416;
-  weights[0][15][9] = 0.7945255311358245;
-
-  weights[1][0][0] = 0.8;
-  weights[1][0][1] = 0.5;
-  weights[1][0][0] = 0.2;
-
-  weights[2][0][0] = 0.3;
-  weights[2][0][1] = 0.98;
-  weights[2][0][0] = 0.44;
-
-  weights[3][0][0] = 0.8;
-  weights[3][0][1] = 0.3;
-  weights[3][0][0] = 0.5;
-
-  weights[3][0][0] = 0.4;
-  weights[3][19][2] = 0.8;
-  weights[3][0][2] = 0.9;
-
+  // setting the weights
+	#include "../Inc/weights.h"
 
 
   // Allocate memory for and initialize neurons
@@ -312,6 +285,9 @@ int main(void)
       output_buffer[i] = 0;
   }
 
+  // Start timer
+  HAL_TIM_Base_Start(&htim16);
+  timer_val = __HAL_TIM_GET_COUNTER(&htim16);
   /////////////////////////////////// MAIN LOOP //////////////////////////////////////
   while (time < MAX_TIME) {
 
@@ -387,6 +363,11 @@ int main(void)
   }
 
 
+  // Check timer
+  timer_val = __HAL_TIM_GET_COUNTER(&htim16) - timer_val;
+  printf("%u ms\r\n", timer_val);
+  printf("Done!\n");
+
 
   //////////////////////////////////////////// CLEANUP ////////////////////////////////////////////
 
@@ -415,14 +396,13 @@ int main(void)
   free(weights);
 
 
+  /* USER CODE END 2 */
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
-	  HAL_GPIO_TogglePin(MyGreenLed_GPIO_Port, MyGreenLed_Pin);
-	  printf("Hello!\n");
-	  HAL_Delay(400);
 
     /* USER CODE BEGIN 3 */
   }
@@ -477,13 +457,13 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_D3PCLK1|RCC_CLOCKTYPE_D1PCLK1;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV1;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV16;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
   }
@@ -535,6 +515,38 @@ static void MX_ETH_Init(void)
   /* USER CODE BEGIN ETH_Init 2 */
 
   /* USER CODE END ETH_Init 2 */
+
+}
+
+/**
+  * @brief TIM16 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM16_Init(void)
+{
+
+  /* USER CODE BEGIN TIM16_Init 0 */
+
+  /* USER CODE END TIM16_Init 0 */
+
+  /* USER CODE BEGIN TIM16_Init 1 */
+
+  /* USER CODE END TIM16_Init 1 */
+  htim16.Instance = TIM16;
+  htim16.Init.Prescaler = 4000 - 1;
+  htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim16.Init.Period = 40000 - 1;
+  htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim16.Init.RepetitionCounter = 0;
+  htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim16) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM16_Init 2 */
+
+  /* USER CODE END TIM16_Init 2 */
 
 }
 
