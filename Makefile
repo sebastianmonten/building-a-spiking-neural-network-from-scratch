@@ -38,3 +38,12 @@ else
 	@echo "Running on non-Linux OS\n"
 	gcc src/main.c -o bin/tmp_main && valgrind --leak-check=full ./bin/tmp_main;
 endif
+
+
+weights:
+ifeq ($(OS), Linux)
+	@echo "Running on Linux\n"
+	python3 src/generate_weights.py "[16384, 3, 2]"
+else
+	@echo "Running on non-Linux OS\n"
+endif

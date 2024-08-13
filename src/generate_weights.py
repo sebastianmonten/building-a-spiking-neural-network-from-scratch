@@ -1,40 +1,50 @@
-# This script is generated using chatGPT
+# This script is created using ChatGPT
 
 import sys
 import random
 import numpy as np
+import struct
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
 def generate_weights(layer_sizes):
-    weights_output = []
+    weights = []
     num_layers = len(layer_sizes)
 
     # Ensure every neuron is connected to at least one neuron in the next layer
     for i in range(num_layers - 1):
+        layer_weights = []
         for j in range(layer_sizes[i]):
+            neuron_weights = [0.0] * layer_sizes[i + 1]
             k = random.randint(0, layer_sizes[i + 1] - 1)
-            weight_value = random.uniform(0.1, 1.0)
-            weights_output.append(f'weights[{i}][{j}][{k}] = {weight_value};')
+            neuron_weights[k] = random.uniform(0.1, 1.0)
+            layer_weights.append(neuron_weights)
+        weights.append(layer_weights)
 
     # Ensure every neuron is connected to at least one neuron in the previous layer
     for i in range(1, num_layers):
         for k in range(layer_sizes[i]):
             j = random.randint(0, layer_sizes[i - 1] - 1)
-            weight_value = random.uniform(0.1, 1.0)
-            weights_output.append(f'weights[{i - 1}][{j}][{k}] = {weight_value};')
+            if weights[i - 1][j][k] == 0.0:
+                weights[i - 1][j][k] = random.uniform(0.1, 1.0)
 
     # Randomly connect other neurons with some probability
     for i in range(num_layers - 1):
         for j in range(layer_sizes[i]):
             for k in range(layer_sizes[i + 1]):
-                if random.random() > 0.75:  # 25% chance of creating a non-zero weight
-                    weight_value = random.uniform(0.1, 1.0)
-                    weights_output.append(f'weights[{i}][{j}][{k}] = {weight_value};')
+                if random.random() > 0.75 and weights[i][j][k] == 0.0:  # 25% chance of creating a non-zero weight
+                    weights[i][j][k] = random.uniform(0.1, 1.0)
 
-    return weights_output
+    return weights
+
+def save_weights_to_binary(weights, filename):
+    with open(filename, 'wb') as f:
+        for layer in weights:
+            for neuron in layer:
+                for weight in neuron:
+                    f.write(struct.pack('d', weight))  # 'd' format for double precision
 
 def plot_network(layer_sizes, weights):
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -48,9 +58,9 @@ def plot_network(layer_sizes, weights):
         y_pos = np.linspace(-max_neurons / 2, max_neurons / 2, layer_size)
         layer_positions.append((x_pos, y_pos))
 
-    # Plot neurons
+    # Plot neurons with larger dots
     for i, (x, y) in enumerate(layer_positions):
-        ax.scatter([x] * len(y), y, s=200, label=f'Layer {i+1}')
+        ax.scatter([x] * len(y), y, s=300, label=f'Layer {i+1}')  # Increased 's' to 300
 
     # Plot connections with color based on weight value
     norm = mcolors.Normalize(vmin=0.1, vmax=1.0)
@@ -67,7 +77,7 @@ def plot_network(layer_sizes, weights):
 
     ax.axis('off')
     plt.savefig('tmp/network_visualization.png')
-    print("\nPlot saved as 'tmp/network_visualization.png'")
+    print("Plot saved as 'tmp/network_visualization.png'")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
@@ -76,18 +86,13 @@ if __name__ == "__main__":
 
     layer_sizes = eval(sys.argv[1])
 
-    # Generate and print weights
-    weights_output = generate_weights(layer_sizes)
-    for line in weights_output:
-        print(line)
+    # Generate weights
+    weights = generate_weights(layer_sizes)
 
-    # Convert weights to a 3D list for visualization
-    num_layers = len(layer_sizes)
-    weights = [[[0.0 for _ in range(layer_sizes[i + 1])] for _ in range(layer_sizes[i])]
-               for i in range(num_layers - 1)]
+    # Save weights to a binary file
+    save_weights_to_binary(weights, 'bin/weights.bin')
+    print(f"Weights saved to 'bin/weights.bin'")
 
-    for line in weights_output:
-        exec(line)  # Executes the string as code to set the weights
-
-    # Plot the network
-    plot_network(layer_sizes, weights)
+    # Plot the network and save as PNG
+    if sum(layer_sizes) <= 100:
+        plot_network(layer_sizes, weights)
