@@ -1,4 +1,4 @@
-// #define DEBUG
+// #define MY_DEBUG
 
 #include "../include/main.h"
 #include "../include/snn.h"

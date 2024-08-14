@@ -1,7 +1,7 @@
 #pragma once
 ////////////////////// LIFNeuron struct //////////////////////////////
 typedef struct {
-    double mp; // membrane potential
-    double ts; // time-stamp of last spike
+    float mp; // membrane potential
+    float ts; // time-stamp of last spike
 } LIFNeuron;
 //////////////////////////////////////////////////////////////////////

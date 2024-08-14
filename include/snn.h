@@ -12,12 +12,18 @@
 #ifndef STM32CubeIDE
 #include "../include/plotting.h"
 #else
-#undef DEBUG
+// #undef MY_DEBUG
 #endif
 
 
 
+
+// The main function for the spiking neural network
 void snn() {
+
+    #ifdef STM32CubeIDE
+    printf("\nStarting snn()\n");
+    #endif
 
 
     // Define the number of neurons in each layer
@@ -35,36 +41,42 @@ void snn() {
     LIFNeuron** layers = (LIFNeuron**)malloc(num_layers * sizeof(LIFNeuron*));
 
     // Allocate memory for the array of weight matrices
-    weights = (double***)malloc((num_layers - 1) * sizeof(double**)); // Already defined in weights.h
+    weights = (int16_t***)malloc((num_layers - 1) * sizeof(int16_t**)); // Already defined in weights.h
 
     // Allocate memory for and initialize weights
     for (int i = 0; i < num_layers - 1; i++) {
-        weights[i] = (double**)malloc(layer_sizes[i] * sizeof(double*));
+        weights[i] = (int16_t**)malloc(layer_sizes[i] * sizeof(int16_t*));
         for (int j = 0; j < layer_sizes[i]; j++) {
-            weights[i][j] = (double*)malloc(layer_sizes[i + 1] * sizeof(double));
+            weights[i][j] = (int16_t*)malloc(layer_sizes[i + 1] * sizeof(int16_t));
             for (int k = 0; k < layer_sizes[i + 1]; k++) {
-                weights[i][j][k] = 0.0; // You can initialize weights as needed
+                weights[i][j][k] = 0; // You can initialize weights as needed
             }
         }
     }
     
+    // Define lower and upper bounds
+    int lower_bound = 100;
+    int upper_bound = 1000;
     ///////////////////////////////// setting the weights ///////////////////////
-    // Load weights from the binary file to the weights array
-    load_weights_from_binary(weights, layer_sizes, num_layers, "bin/weights.bin");
+    #include "../include/weights.h"
+    printf("\nSuccessfully loaded weights\n");
     ////////////////////////////////////////////////////////////////////////////
 
     // print all weights
-    #ifdef DEBUG
+    #ifdef MY_DEBUG
     for (int i = 0; i < num_layers - 1; i++) {
-        printf("\nLayer %d to Layer %d weights:\n", i, i + 1);
+        printf("\nWeights from layer %d to layer %d\n", i, i + 1);
         for (int j = 0; j < layer_sizes[i]; j++) {
-            printf("Neuron %d: ", j);
             for (int k = 0; k < layer_sizes[i + 1]; k++) {
-                printf("%f ", weights[i][j][k]);
+                printf("Weight from neuron %d to neuron %d: %d\n", j, k, weights[i][j][k]);
             }
-            printf("\n");
         }
     }
+    #endif
+
+    
+    #ifdef STM32CubeIDE
+    printf("\nFLAG-00\n");
     #endif
 
 
@@ -77,8 +89,12 @@ void snn() {
         }
     }
 
+    #ifdef STM32CubeIDE
+    printf("\nFLAG-01\n");
+    #endif
+
     // Print all neurons
-    #ifdef DEBUG
+    #ifdef MY_DEBUG
     for (int i = 0; i < num_layers; i++) {
         printf("\nLayer %d neurons:\n", i);
         for (int j = 0; j < layer_sizes[i]; j++) {
@@ -87,15 +103,23 @@ void snn() {
     }
     #endif
 
+    #ifdef STM32CubeIDE
+    printf("\nFLAG-02\n");
+    #endif
+
     // Create a queue of input queues for each layer
     INPUT_QUEUE** input_queues = (INPUT_QUEUE**)malloc(num_layers * sizeof(INPUT_QUEUE*));
     for (int i = 0; i < num_layers; i++) {
         input_queues[i] = create_input_queue(layer_sizes[i]);
     }
+
+    #ifdef STM32CubeIDE
+    printf("\nFLAG-03\n");
+    #endif
     
     
     // Print the input queue for each layer
-    #ifdef DEBUG
+    #ifdef MY_DEBUG
     printf("\nInput queues for each layer\n");
     for (int i = 0; i < num_layers; i++) {
         printf("Layer %d\n", i);
@@ -112,7 +136,9 @@ void snn() {
 
     
 
-
+    #ifdef STM32CubeIDE
+    printf("\nFLAG-04\n");
+    #endif
     
 
 
@@ -132,26 +158,23 @@ void snn() {
     #endif
 
 
-    #ifdef DEBUG
-    printf("\nMax computations: %d\n", MAX_COMPUTATIONS);
-    printf("\nStarting simulation\n");
-    #endif
-
+   
+    printf("\nStarting simulation with max computations: %d\n", MAX_COMPUTATIONS);
     // Main Loop
     while (num_computations < MAX_COMPUTATIONS) {
 
         
-        #ifdef DEBUG
+
         printf("\n################################################## Iteraion: %d\n", counter);
-        #endif
+
 
         if (num_computations % 50 == 0) {
             printf("Iteration: %d, Computations: %d, Input spikes: %d\n", counter, num_computations, num_input_spikes);
         }
 
-        // Start eatch iteration with sending spikes to all neurons in the first layer
-        for (int i = 0; i < layer_sizes[0]; i++) {
-            #ifdef DEBUG
+        // Start eatch iteration with sending spikes to every other neuron in the first layer
+        for (int i = 0; i < layer_sizes[0]; i+=2) {
+            #ifdef MY_DEBUG
             printf("Inserting input to neuron %d in the input layer\n", i);
             #endif
             insert_input(input_queues[0], i, 1.0);
@@ -161,7 +184,7 @@ void snn() {
         // Forward pass
         for (int layer_idx = 0; layer_idx < num_layers; layer_idx++) {
 
-            #ifdef DEBUG
+            #ifdef MY_DEBUG
             // print a snaphot of neuron states:
             printf("\nNeuron states at layer %d:\n", layer_idx);
             for (int i = 0; i < layer_sizes[layer_idx]; i++) {
@@ -174,7 +197,7 @@ void snn() {
 
             INPUT* current = input_queues[layer_idx]->head;
             if (current == NULL) {
-                #ifdef DEBUG
+                #ifdef MY_DEBUG
                 printf("No inputs to layer %d\n", layer_idx);
                 #endif
                 break; // If current layer has no input, then nor will the rest. Break the loop
@@ -190,15 +213,15 @@ void snn() {
                     break;
                 }
 
-                #ifdef DEBUG
+                #ifdef STM32CubeIDE
                 printf("\nUpdating neuron %d in layer %d\n", current->target_index, layer_idx);
                 #endif
 
                 int to_update_index = current->target_index; // The index of the neuron to update
-                double to_update_value = current->value; // The input value to the neuron
+                float to_update_value = current->value; // The input value to the neuron
 
                 LIFNeuron* neuron_to_update = &layers[layer_idx][to_update_index]; // Pointer to neuron to update
-                double time_since_last_update = time - neuron_to_update->ts;
+                float time_since_last_update = time - neuron_to_update->ts;
                 
                 #ifndef STM32CubeIDE
                 // Add datapoints for the membrane potential between the last update and now
@@ -225,17 +248,17 @@ void snn() {
                     mark_point(layer_idx, to_update_index, time, neuron_to_update->mp); // Mark the spike as a vertical line down to RP
                     #endif
 
-                    #ifdef DEBUG
+                    #ifdef MY_DEBUG
                     printf("Neuron %d in layer %d spiked at time %Lf\n", to_update_index, layer_idx, time);
                     #endif
 
                     // If this is not the last layer, update the inputs to the next layer
                     if (layer_idx < num_layers - 1) {
                         for (int weight_idx = 0; weight_idx < layer_sizes[layer_idx + 1]; weight_idx++) {
-                            double weight = weights[layer_idx][to_update_index][weight_idx];
+                            int16_t weight = weights[layer_idx][to_update_index][weight_idx];
                             if (weight > WTH) {
-                                
-                                insert_input(input_queues[layer_idx + 1], weight_idx, weight);
+                                float converted_weight = convert_weight(weight, lower_bound, upper_bound);
+                                insert_input(input_queues[layer_idx + 1], weight_idx, converted_weight);
                             }
                         }
                     } else {
