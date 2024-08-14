@@ -45,7 +45,7 @@ for layer in range(len(layer_dimensions)):
     axes[layer].set_title(f'Layer {layer}')
     axes[layer].set_ylabel('Potential')
     axes[layer].legend()
-    axes[layer].set_ylim(0.1, 1.1)  # Set y-axis limits
+    axes[layer].set_ylim(0, 300)  # Set y-axis limits
 
 # Set x-axis label for the last subplot
 axes[-1].set_xlabel('Time')

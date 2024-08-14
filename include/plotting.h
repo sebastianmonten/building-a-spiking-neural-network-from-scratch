@@ -5,7 +5,7 @@
 const char* NEURON_DATA_FILE_NAME = "tmp/neuron_data.csv";
 const char* LAYER_DIMENSIONS_FILE_NAME = "tmp/layer_dimensions.csv";
 
-void mark_point(int layer, int neuron, double time, double potential) {
+void mark_point(int layer, int neuron, neuron_ts_t time, neuron_mp_t potential) {
     FILE *file = fopen(NEURON_DATA_FILE_NAME, "a");
     if (file == NULL) {
         perror("Failed to open file");
@@ -13,7 +13,7 @@ void mark_point(int layer, int neuron, double time, double potential) {
     }
 
     // Make an entry in the CSV file
-    fprintf(file, "%d,%d,%f,%f\n", layer, neuron, time, potential);
+    fprintf(file, "%d,%d,%d,%d\n", layer, neuron, time, potential);
     fclose(file);
 }
 
@@ -28,7 +28,7 @@ void add_headers() {
     fclose(file);
 }
 
-void fill_in_plot(int layer, int neuron, double time_start, double time_end, double potential) {
+void fill_in_plot(int layer, int neuron, neuron_ts_t time_start, neuron_ts_t time_end, float potential) {
     FILE *file = fopen(NEURON_DATA_FILE_NAME, "a");
     if (file == NULL) {
         perror("Failed to open file");
@@ -45,7 +45,7 @@ void fill_in_plot(int layer, int neuron, double time_start, double time_end, dou
     fclose(file);
 }
 
-void write_layer_dimensions(int* layer_sizes, int num_layers) {
+void write_layer_dimensions(const uint16_t * layer_sizes, int num_layers) {
     FILE *file = fopen(LAYER_DIMENSIONS_FILE_NAME, "a");
     if (file == NULL) {
         perror("Failed to open file");
