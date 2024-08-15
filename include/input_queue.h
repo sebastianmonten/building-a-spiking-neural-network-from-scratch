@@ -1,8 +1,9 @@
 #pragma once
+#include "../include/main.h"
 
 typedef struct INPUT {
-    int target_index;
-    double value;
+    neuron_idx_t target_index;
+    neuron_mp_t value;
     struct INPUT* next;
     struct INPUT* prev;
 } INPUT;
@@ -10,11 +11,11 @@ typedef struct INPUT {
 typedef struct INPUT_QUEUE {
     INPUT* head;
     INPUT* tail;
-    int size;
-    int max_size;
+    neuron_idx_t size;
+    neuron_idx_t max_size;
 } INPUT_QUEUE;
 
-INPUT_QUEUE* create_input_queue(int max_size) {
+INPUT_QUEUE* create_input_queue(neuron_idx_t max_size) {
     INPUT_QUEUE* input_queue = (INPUT_QUEUE*)malloc(sizeof(INPUT_QUEUE));
     input_queue->head = NULL;
     input_queue->tail = NULL;
@@ -23,7 +24,7 @@ INPUT_QUEUE* create_input_queue(int max_size) {
     return input_queue;
 }
 
-void insert_input(INPUT_QUEUE* input_queue, int target_index, double value) {
+void insert_input(INPUT_QUEUE* input_queue, neuron_idx_t target_index, neuron_mp_t value) {
 
     if (input_queue->max_size -1 < target_index) {
         printf("Error: target index is out of range\n");
@@ -76,7 +77,7 @@ void print_input_queue(INPUT_QUEUE* input_queue) {
         return;
     }
     while (cur_input != NULL) {
-        printf("target_index: %d, value: %f\n", cur_input->target_index, cur_input->value);
+        printf("target_index: %d, value: %d\n", cur_input->target_index, cur_input->value);
         cur_input = cur_input->next;
     }
 }
