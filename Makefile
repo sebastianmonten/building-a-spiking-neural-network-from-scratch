@@ -43,7 +43,7 @@ endif
 weights:
 ifeq ($(OS), Linux)
 	@echo "Running on Linux\n"
-	python3 src/generate_weights.py "[2, 3, 2]"
+	python3 src/generate_weights.py "[1024, 256, 32, 2]"
 else
 	@echo "Running on non-Linux OS\n"
 endif

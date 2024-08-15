@@ -2,7 +2,7 @@
 #include "../include/main.h"
 
 typedef struct INPUT {
-    uint16_t target_index;
+    neuron_idx_t target_index;
     neuron_mp_t value;
     struct INPUT* next;
     struct INPUT* prev;
@@ -11,11 +11,11 @@ typedef struct INPUT {
 typedef struct INPUT_QUEUE {
     INPUT* head;
     INPUT* tail;
-    uint16_t size;
-    uint16_t max_size;
+    neuron_idx_t size;
+    neuron_idx_t max_size;
 } INPUT_QUEUE;
 
-INPUT_QUEUE* create_input_queue(uint16_t max_size) {
+INPUT_QUEUE* create_input_queue(neuron_idx_t max_size) {
     INPUT_QUEUE* input_queue = (INPUT_QUEUE*)malloc(sizeof(INPUT_QUEUE));
     input_queue->head = NULL;
     input_queue->tail = NULL;
@@ -24,7 +24,7 @@ INPUT_QUEUE* create_input_queue(uint16_t max_size) {
     return input_queue;
 }
 
-void insert_input(INPUT_QUEUE* input_queue, uint16_t target_index, neuron_mp_t value) {
+void insert_input(INPUT_QUEUE* input_queue, neuron_idx_t target_index, neuron_mp_t value) {
 
     if (input_queue->max_size -1 < target_index) {
         printf("Error: target index is out of range\n");

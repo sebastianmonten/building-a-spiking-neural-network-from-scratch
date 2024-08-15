@@ -11,6 +11,7 @@ matplotlib.use('Agg')
 # Define a limit for neurons and layers
 MAX_NEURONS_PER_LAYER = 10
 MAX_LAYERS = 6
+DT = 1
 
 # Read the layer dimensions CSV file
 layer_dimensions = pd.read_csv('tmp/layer_dimensions.csv')
@@ -48,6 +49,9 @@ for layer in range(len(layer_dimensions)):
     axes[layer].set_ylim(0, 300)  # Set y-axis limits
 
 # Set x-axis label for the last subplot
+max_time = data['time'].max()  # Get the maximum time value from the data
+x_ticks = list(range(0, int(max_time) + 1, DT))  # Create ticks at intervals of DT
+axes[-1].set_xticks(x_ticks)
 axes[-1].set_xlabel('Time')
 
 # Adjust layout
@@ -56,3 +60,6 @@ plt.tight_layout()
 # Save the plot or display
 plt.savefig('tmp/neuron_potentials.png')
 # plt.show() // Does not seem to work in wsl environment
+
+# Print a message indicating the plot has been saved
+print("Plot saved successfully as 'tmp/neuron_potentials.png'.")

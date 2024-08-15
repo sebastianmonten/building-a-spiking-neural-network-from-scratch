@@ -1,4 +1,4 @@
-// #define MY_DEBUG
+#define VSCODE
 
 #include "../include/main.h"
 #include "../include/snn.h"
