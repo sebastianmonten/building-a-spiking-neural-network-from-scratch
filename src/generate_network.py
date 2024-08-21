@@ -109,7 +109,8 @@ def save_weights_to_header(weights, layer_sizes, filename="include/network.h"):
             c_sum += layer_sizes[i]
         f.write("};\n")
 
-        f.write("\nneuron_mp_t NEURONS_MP[] = {\n")
+        f.write("\n// Neuron membrane potentials\n")
+        f.write("neuron_mp_t NEURONS_MP[] = {\n")
         for i in range(1, len(layer_sizes)):
             f.write(space)
             for j in range(layer_sizes[i]):
@@ -117,8 +118,8 @@ def save_weights_to_header(weights, layer_sizes, filename="include/network.h"):
             f.write("\n")
         f.write("};\n")
 
-
-        f.write("\nneuron_ts_t NEURONS_TS[] = {\n")
+        f.write("\n// Timestamps for when neurons where last updated\n")
+        f.write("neuron_ts_t NEURONS_TS[] = {\n")
         for i in range(1, len(layer_sizes)):
             f.write(space)
             for j in range(layer_sizes[i]):
@@ -126,7 +127,8 @@ def save_weights_to_header(weights, layer_sizes, filename="include/network.h"):
             f.write("\n")
         f.write("};\n")
 
-        f.write("\ninput_t INPUTS[] = {\n")
+        f.write("\n// Buffer slots for accumuled inputs for each neuron from spikes from the previous layer\n")
+        f.write("input_t INPUTS[] = {\n")
         for i in range(1, len(layer_sizes)):
             f.write(space)
             for j in range(layer_sizes[i]):
