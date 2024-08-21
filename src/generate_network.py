@@ -54,63 +54,94 @@ def save_weights_to_header(weights, layer_sizes, filename="include/network.h"):
         f.write("#pragma once\n\n")
         f.write('#include "../include/main.h"\n\n')
 
+        f.write(f"const neuron_idx_t INPUT_SIZE = {layer_sizes[0]};\n")
         f.write("const neuron_idx_t LAYER_SIZES[] = {")
-        for i in range(len(layer_sizes)):
+        for i in range(1, len(layer_sizes)):
             f.write(f"{layer_sizes[i]}")
             if i != len(layer_sizes) - 1:
                 f.write(", ")
         f.write("};\n")
-        f.write(f'const uint16_t NUM_LAYERS = {len(layer_sizes)};\n')
+        f.write(f'const uint16_t NUM_LAYERS = {len(layer_sizes)-1};\n')
 
         f.write(f'const uint32_t NUM_WEIGHTS = {num_weights};\n')
         f.write(f'const uint32_t NUM_NEURONS = {num_neurons};\n')
-        f.write("\nconst weight_t** WEIGHTS[] = {\n")
 
-        # Writing weights in the specified format
         space = "    "
-        for i in range(num_layers - 1):
-            f.write(space + f"// {i} -> {i+1}\n")
-            f.write(space + "(const weight_t*[]){\n")
+
+        # Writing weights for the first layer
+        f.write('\nconst weight_t PRE_WEIGHTS[] = {\n')
+        for j in range(layer_sizes[0]):
+            f.write(space+f'/*neuron {j}*/ ')
+            for k in range(layer_sizes[1]):
+                weight_value = weights[0][j][k]
+                f.write(f"{weight_value}, ")
+            f.write("\n")
+        f.write("};\n")
+
+        # Writing weights for the rest of the layers
+        f.write("\nconst weight_t WEIGHTS[] = {\n")
+        for i in range(1, num_layers - 1):
+            f.write(space + f"// {i-1} -> {i}\n")
+            # f.write(space + "(const weight_t*[]){\n")
+            
             for j in range(layer_sizes[i]):
-                f.write(2*space + "(weight_t[]){")
+                f.write(space+f'/*neuron {j}*/ ')
                 for k in range(layer_sizes[i + 1]):
                     weight_value = weights[i][j][k]
                     f.write(f"{weight_value}, ")
-                f.write("},\n")
-            f.write(space + "},\n")
+                f.write("\n")
+            f.write("\n")
         f.write("};\n")
 
-        f.write("\nneuron_mp_t* NEURONS_MP[] = {\n")
+        f.write("\n// Cumulative weight index sum for each layer\n")
+        f.write("uint32_t CWI[] = {")
+        c_sum = 0
+        for i in range(1, len(layer_sizes)-1):
+            f.write(f"{c_sum}, ")
+            c_sum += layer_sizes[i]*layer_sizes[i+1]
+        f.write("};\n")
+
+        f.write("\n// Cumulative neuron index sum for each layer\n")
+        f.write("uint16_t CNI[] = {")
+        c_sum = 0
         for i in range(1, len(layer_sizes)):
-            f.write(space + "(neuron_mp_t[]){")
+            f.write(f"{c_sum}, ")
+            c_sum += layer_sizes[i]
+        f.write("};\n")
+
+        f.write("\nneuron_mp_t NEURONS_MP[] = {\n")
+        for i in range(1, len(layer_sizes)):
+            f.write(space)
             for j in range(layer_sizes[i]):
                 f.write("0, ")
-            f.write("},\n")
+            f.write("\n")
         f.write("};\n")
 
 
-        f.write("\nneuron_ts_t* NEURONS_TS[] = {\n")
+        f.write("\nneuron_ts_t NEURONS_TS[] = {\n")
         for i in range(1, len(layer_sizes)):
-            f.write(space + "(neuron_ts_t[]){")
+            f.write(space)
             for j in range(layer_sizes[i]):
                 f.write("0, ")
-            f.write("},\n")
+            f.write("\n")
         f.write("};\n")
 
-        f.write("\ninput_t* INPUTS[] = {\n")
+        f.write("\ninput_t INPUTS[] = {\n")
         for i in range(1, len(layer_sizes)):
-            f.write(space + "(input_t[]){")
+            f.write(space)
             for j in range(layer_sizes[i]):
                 f.write("0, ")
-            f.write("},\n")
+            f.write("\n")
         f.write("};\n")
 
-        f.write("\ninput_t INPUT_BUFFER[] = {")
+        f.write(f"\n// Boolen array representing spikes from the {layer_sizes[0]} inputs\n")
+        f.write("input_t INPUT_BUFFER[] = {")
         for i in range(layer_sizes[0]):
             f.write("0, ")
         f.write("};\n")
 
-        f.write("\ninput_t OUTPUT_BUFFER[] = {")
+        f.write(f"\n// Boolen array representing spikes from the {layer_sizes[-1]} neurons in the last layer\n")
+        f.write("input_t OUTPUT_BUFFER[] = {")
         for i in range(layer_sizes[-1]):
             f.write("0, ")
         f.write("};\n")
