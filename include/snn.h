@@ -8,10 +8,13 @@
 #include "../include/main.h"
 #include "../include/network.h"
 
-// #define STM32_PROFILE
+#ifndef VSCODE
+#define STM32_PROFILE
+#endif
+
 #ifdef STM32_PROFILE
 uint16_t UPDATE_LAYER_TOTAL_TIME = 0;
-uint16_t UPDATE_INPUTS_1_TOTAL_TIME = 0;
+uint16_t UPDATE_INPUTS_0_TOTAL_TIME = 0;
 uint16_t SET_INPUT_BUFFER_TOTAL_TIME = 0;
 uint16_t UPDATE_MEMBRANE_POTENTIAL_TOTAL_TIME = 0;
 #endif
@@ -33,6 +36,14 @@ int _write(int file, char *ptr, int len) {
 #endif
 
 
+// Function to get the absolute index of a neuron in the network
+uint32_t absolute_neuron_index(int layer_idx, int neuron_idx) {
+    return CNI[layer_idx] + neuron_idx;
+} 
+
+uint32_t absolute_weight_index(int layer_idx, int neuron_from_idx, int neuron_to_idx) {
+    return CWI[layer_idx] + neuron_from_idx*LAYER_SIZES[layer_idx+1] + neuron_to_idx;
+}
 
 void set_input_buffer(int * num_input_spikes) {
     for (int neuron_idx = 0; neuron_idx < LAYER_SIZES[0]-1; neuron_idx+=2) {
@@ -41,14 +52,22 @@ void set_input_buffer(int * num_input_spikes) {
     }
 }
 
-void update_inputs_1() {
-    for (int input_idx = 0; input_idx < LAYER_SIZES[0]; input_idx++) {
+void update_inputs_0() {
+    for (int input_idx = 0; input_idx < INPUT_SIZE; input_idx++) {
+
         if (INPUT_BUFFER[input_idx] == 1) {
-            for (int weight_idx = 0; weight_idx < LAYER_SIZES[1]; weight_idx++) {
-                weight_t cur_weight = WEIGHTS[0][input_idx][weight_idx];
-                if (cur_weight > WTH && INPUTS[0][weight_idx] < ATH) {
-                    INPUTS[0][weight_idx] += cur_weight;
-                }
+            // If the current input is a spike, send it to all connected neurons in layer 0
+            for (int next_neuron_idx = 0; next_neuron_idx < LAYER_SIZES[0]; next_neuron_idx++) {
+                weight_t cur_weight = PRE_WEIGHTS[input_idx*LAYER_SIZES[0] + next_neuron_idx];
+                if (cur_weight > WTH) {
+                    uint32_t absolute_input_idx = absolute_neuron_index(0, next_neuron_idx);
+                    if (INPUTS[absolute_input_idx] < ATH)
+                        if (INPUTS[absolute_input_idx] + cur_weight < ATH) {
+                            INPUTS[absolute_input_idx] += cur_weight;
+                        } else {
+                            INPUTS[absolute_input_idx] = ATH;
+                        }
+                    }
             }
             INPUT_BUFFER[input_idx] = 0; // Reset this input
         }
@@ -61,61 +80,58 @@ decimal_temporary_t update_membrane_potential(decimal_temporary_t prev_mp, neuro
 }
 
 void update_layer(int layer_idx, int * num_computations, unsigned long * time) {
-    for (int input_idx = 0; input_idx < LAYER_SIZES[layer_idx]; input_idx++) {
+    for (int cur_neuron_idx = 0; cur_neuron_idx < LAYER_SIZES[layer_idx]; cur_neuron_idx++) {
+        
+        int absolute_neuron_idx = absolute_neuron_index(layer_idx, cur_neuron_idx);
 
-        if (INPUTS[layer_idx-1][input_idx] > WTH) {
+        if (INPUTS[absolute_neuron_idx] > WTH) {
             
             #ifdef MY_DEBUG
-            printf("Updating neuron %d", input_idx);
+            printf("Updating neuron %d", cur_neuron_idx);
             #endif
             
-            int to_update_index = input_idx;
-            neuron_mp_t to_update_value = INPUTS[layer_idx-1][input_idx];
+            neuron_mp_t to_update_value = INPUTS[absolute_neuron_idx];
 
-            decimal_temporary_t neuron_to_update_mp = (decimal_temporary_t) NEURONS_MP[layer_idx-1][to_update_index];
-            neuron_ts_t time_since_last_update = (*time) -                  NEURONS_TS[layer_idx-1][to_update_index];
+            decimal_temporary_t neuron_to_update_mp = (decimal_temporary_t) NEURONS_MP[absolute_neuron_idx];
+            neuron_ts_t time_since_last_update = (*time) -                  NEURONS_TS[absolute_neuron_idx];
 
-            // neuron_to_update_mp = 
-            // ((decimal_temporary_t) RP) + 
-            // (neuron_to_update_mp - ((decimal_temporary_t ) RP)) * exp(- (long double) time_since_last_update / TAU);
             #ifdef STM32_PROFILE
                 uint16_t update_membrane_potential_time = __HAL_TIM_GET_COUNTER(&htim16);
             #endif
-            neuron_to_update_mp = update_membrane_potential(neuron_to_update_mp, time_since_last_update);
+            neuron_to_update_mp = update_membrane_potential(neuron_to_update_mp, time_since_last_update)
+                                + (decimal_temporary_t) to_update_value;
             #ifdef STM32_PROFILE
                 UPDATE_MEMBRANE_POTENTIAL_TOTAL_TIME += __HAL_TIM_GET_COUNTER(&htim16) - update_membrane_potential_time;
                 // printf("UPDATE_MEMBRANE_POTENTIAL_TOTAL_TIME: %d ms\n", UPDATE_MEMBRANE_POTENTIAL_TOTAL_TIME);
             #endif
 
-            neuron_to_update_mp += (decimal_temporary_t) to_update_value; 
+            NEURONS_MP[absolute_neuron_idx] = (neuron_mp_t) neuron_to_update_mp;
+            NEURONS_TS[absolute_neuron_idx] = (*time);
 
-            NEURONS_MP[layer_idx-1][to_update_index] = (neuron_mp_t) neuron_to_update_mp;
-            NEURONS_TS[layer_idx-1][to_update_index] = (*time);
-
-            if (NEURONS_MP[layer_idx-1][to_update_index] >= ATH) {
+            // Check if the neuron spikes
+            if (NEURONS_MP[absolute_neuron_idx] >= ATH) {
                 
-                NEURONS_MP[layer_idx-1][to_update_index] = RP;
+                NEURONS_MP[absolute_neuron_idx] = RP;
                 if (layer_idx < NUM_LAYERS - 1) {
 
                     #ifdef MY_DEBUG
                     printf(", spiked, connected to next layer indexes: ");
                     #endif
 
-                    for (int weight_idx = 0; weight_idx < LAYER_SIZES[layer_idx+1]; weight_idx++) {
-                        int16_t cur_weight = WEIGHTS[layer_idx][to_update_index][weight_idx];
-                        if (cur_weight > WTH) {
+                    for (int next_neuron_idx = 0; next_neuron_idx < LAYER_SIZES[layer_idx+1]; next_neuron_idx++) {
 
+                        int16_t cur_weight = WEIGHTS[absolute_weight_index(layer_idx, cur_neuron_idx, next_neuron_idx)];
+
+                        if (cur_weight > WTH) {
                             #ifdef MY_DEBUG
                             printf("%d, ", weight_idx); 
                             #endif
-                            if (INPUTS[layer_idx][weight_idx] < ATH) {
-                                if ((uint32_t) INPUTS[layer_idx][weight_idx] + (uint32_t) cur_weight > (uint32_t) ATH) {
-                                    #ifdef MY_DEBUG
-                                    printf("(ATH reached), ");
-                                    #endif
-                                    INPUTS[layer_idx][weight_idx] = ATH;
+                            int absolute_next_input_idx = absolute_neuron_index(layer_idx+1, next_neuron_idx);
+                            if (INPUTS[absolute_next_input_idx] < ATH) {
+                                if (INPUTS[absolute_next_input_idx] + cur_weight < ATH) {
+                                    INPUTS[absolute_next_input_idx] += cur_weight;
                                 } else {
-                                    INPUTS[layer_idx][weight_idx] += cur_weight;
+                                    INPUTS[absolute_next_input_idx] = ATH;
                                 }
                             }
                         }
@@ -125,7 +141,7 @@ void update_layer(int layer_idx, int * num_computations, unsigned long * time) {
                     #endif
 
                 } else {
-                    OUTPUT_BUFFER[to_update_index] = 1;
+                    OUTPUT_BUFFER[cur_neuron_idx] = 1;
                     #ifdef MY_DEBUG
                     printf(", spiked, last layer\n");
                     #endif
@@ -152,10 +168,8 @@ void snn() {
     // #endif
 
     // Initialize neuron membrande potentials
-    for (int layer_idx = 1; layer_idx < NUM_LAYERS; layer_idx++) {
-        for (int neuron_idx = 0; neuron_idx < LAYER_SIZES[layer_idx]; neuron_idx++) {
-            NEURONS_MP[layer_idx-1][neuron_idx] = RP;
-        }
+    for (int absolute_neuron_idx = 0; absolute_neuron_idx < NUM_NEURONS; absolute_neuron_idx++) {
+        NEURONS_MP[absolute_neuron_idx] = RP;
     }
 
 
@@ -242,16 +256,16 @@ void snn() {
         
         // Send inputs to layer 1
         #ifdef STM32_PROFILE
-            uint16_t update_inputs_1_time = __HAL_TIM_GET_COUNTER(&htim16);
+            uint16_t update_inputs_0_time = __HAL_TIM_GET_COUNTER(&htim16);
         #endif
-        update_inputs_1();
+        update_inputs_0();
         #ifdef STM32_PROFILE
-            UPDATE_INPUTS_1_TOTAL_TIME += __HAL_TIM_GET_COUNTER(&htim16) - update_inputs_1_time;
-            // printf("UPDATE_INPUTS_1_TOTAL_TIME: %d ms\n", UPDATE_INPUTS_1_TOTAL_TIME);
+            UPDATE_INPUTS_0_TOTAL_TIME += __HAL_TIM_GET_COUNTER(&htim16) - update_inputs_0_time;
+            // printf("UPDATE_INPUTS_0_TOTAL_TIME: %d ms\n", UPDATE_INPUTS_0_TOTAL_TIME);
         #endif
         
         // Go through layers from 1 to the last
-        for (int layer_idx = 1; layer_idx < NUM_LAYERS; layer_idx++) {
+        for (int layer_idx = 0; layer_idx < NUM_LAYERS; layer_idx++) {
             
             #ifdef MY_DEBUG
             printf("\n#### Layer %d\n", layer_idx);
@@ -300,14 +314,15 @@ void snn() {
     printf("\nUPDATE_LAYER_TOTAL_TIME: %d ms\n", UPDATE_LAYER_TOTAL_TIME);
     printf("\nUPDATE_MEMBRANE_POTENTIAL_TOTAL_TIME: %d ms\n", UPDATE_MEMBRANE_POTENTIAL_TOTAL_TIME);
     printf("\nSET_INPUT_BUFFER_TOTAL_TIME: %d ms\n", SET_INPUT_BUFFER_TOTAL_TIME);
-    printf("\nUPDATE_INPUTS_1_TOTAL_TIME: %d ms\n", UPDATE_INPUTS_1_TOTAL_TIME);
+    printf("\nUPDATE_INPUTS_0_TOTAL_TIME: %d ms\n", UPDATE_INPUTS_0_TOTAL_TIME);
     #else
     end = clock();
     total_time_in_ms = ((double) (end - start)) / CLOCKS_PER_SEC;
     #endif
     printf("\n################################################\n################################################\n");
     printf("\nTotal time: %f ms\n", total_time_in_ms);
-    printf("\nNetwork shape: [");
+    printf("\nInput size:    %d\n", INPUT_SIZE);
+    printf("Network shape: [ ");
     for (int i = 0; i < NUM_LAYERS; i++) {
         printf("%d ", LAYER_SIZES[i]);
     };
