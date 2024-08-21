@@ -1,8 +1,9 @@
 #define VSCODE
+// #define MY_DEBUG
 
 #include "../include/main.h"
 #include "../include/snn.h"
-#include "../include/weights.h"  // Include the header file
+#include "../include/network.h"  // Include the header file
 
 int main(void) {
 

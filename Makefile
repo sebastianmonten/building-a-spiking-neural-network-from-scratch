@@ -1,6 +1,7 @@
 clean: # deletes all files in bin folder
 	rm -rf bin/*;
 	rm -rf tmp/*;
+	rm -rf profile/*;
 	clear;
 
 # Detect the operating system
@@ -40,10 +41,23 @@ else
 endif
 
 
-weights:
+
+network:
 ifeq ($(OS), Linux)
 	@echo "Running on Linux\n"
-	python3 src/generate_weights.py "[1024, 256, 32, 2]"
+	make clean;
+	python3 src/generate_network.py "[1024, 256, 32, 2]"
 else
 	@echo "Running on non-Linux OS\n"
+	make clean;
+endif
+
+profiler:
+ifeq ($(OS), Linux)
+	@echo "Running on Linux\n"
+	cd ./profile &&	gcc ../src/main.c -lm -pg -o ../bin/tmp_main && ../bin/tmp_main && gprof ../bin/tmp_main gmon.out > gmon.txt;
+	
+else
+	@echo "Running on non-Linux OS\n"
+	make clean;
 endif
