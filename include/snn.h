@@ -1,4 +1,5 @@
 #pragma once
+// on branch test/17
 
 #include <stdio.h> // For printf
 
@@ -257,20 +258,28 @@ void snn() {
     #endif
 
     
+    
 
     // Main Loop
-    while (num_computations < MAX_COMPUTATIONS) {
+    while (MAX_TIME > time) {
+
+        // end = clock();
+        // uint64_t cur_time = (uint64_t) (end - start) / CLOCKS_PER_SEC;
 
         #ifdef MY_DEBUG
         printf("\n################################################## Iteration: %d\n", num_iterations);
         printf("\nNumber of computations: %d\n", num_computations);
+        printf("\nCur time: %d\n", time);
         #endif
 
         // Start eatch iteration with sending spikes to every other neuron in the first layer
         #ifdef STM32_PROFILE
             uint16_t set_input_buffer_time = __HAL_TIM_GET_COUNTER(&htim16);
         #endif
-        set_input_buffer(&num_input_spikes);
+        // set_input_buffer(&num_input_spikes);
+        if (time == 0 || time == 39) {
+            set_input_buffer(&num_input_spikes);
+        }
         #ifdef STM32_PROFILE
             SET_INPUT_BUFFER_TOTAL_TIME += __HAL_TIM_GET_COUNTER(&htim16) - set_input_buffer_time;
             // printf("SET_INPUT_BUFFER_TOTAL_TIME: %d ms\n", SET_INPUT_BUFFER_TOTAL_TIME);

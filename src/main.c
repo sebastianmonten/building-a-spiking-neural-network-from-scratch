@@ -1,6 +1,6 @@
 #define VSCODE
-// #define MY_DEBUG
-// #define PLOT
+#define MY_DEBUG
+#define PLOT
 
 #include "../include/main.h"
 #include "../include/snn.h"
