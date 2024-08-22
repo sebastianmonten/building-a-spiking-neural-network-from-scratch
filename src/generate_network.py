@@ -60,7 +60,7 @@ def save_weights_to_header(weights, layer_sizes, filename="include/network.h"):
             f.write(f"{layer_sizes[i]}")
             if i != len(layer_sizes) - 1:
                 f.write(", ")
-        f.write("};\n")
+        f.write("}; // This is not including the first size " + f'{layer_sizes[0]}' + ", which represents the inputs to the network\n")
         f.write(f'const uint16_t NUM_LAYERS = {len(layer_sizes)-1};\n')
 
         f.write(f'const uint32_t NUM_WEIGHTS = {num_weights};\n')
