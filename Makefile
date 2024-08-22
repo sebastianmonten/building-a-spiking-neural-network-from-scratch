@@ -46,7 +46,7 @@ network:
 ifeq ($(OS), Linux)
 	@echo "Running on Linux\n"
 	make clean;
-	python3 src/generate_network.py "[1024, 256, 32, 2]"
+	python3 src/generate_network.py "[3, 1, 1, 1]"
 else
 	@echo "Running on non-Linux OS\n"
 	make clean;
